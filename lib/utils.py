@@ -46,6 +46,24 @@ def is_confidence_interval_outlier(test_value: float, values: List[float], confi
     return True, confidence_interval
 
 
+def add_default_biomarker_statistic(stat_dict: dict, biomarker1, biomarker2) -> None:
+    stat_dict.setdefault(biomarker1 + "/" + biomarker2, dict())
+    stat_dict[biomarker1 + "/" + biomarker2].setdefault("passed", 0)
+    stat_dict[biomarker1 + "/" + biomarker2].setdefault("failed", 0)
+    stat_dict[biomarker1 + "/" + biomarker2].setdefault("skipped", 0)
+    stat_dict[biomarker1 + "/" + biomarker2].setdefault("total", 0)
+
+
+def pretty_print_biomarker_statistic(stat_dict: dict) -> str:
+    biomarker_log = ""
+    for biomarker, status_dict in stat_dict.items():
+        if status_dict['total'] > 0:
+            biomarker_log += "\t" + biomarker + ":\t"
+            for status, num in status_dict.items():
+                biomarker_log += "\t" + status + ":\t" + str(num) + "\t"
+            biomarker_log += "\n"
+    return biomarker_log
+
 class CustomFormatter(logging.Formatter):
     grey = '\x1b[38;21m'
     green = '\x1b[1;32m'

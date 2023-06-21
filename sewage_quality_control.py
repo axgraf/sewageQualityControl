@@ -29,10 +29,8 @@ class SewageQuality:
 
     def __create_logger(self):
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.WARNING)
-        if self.verbosity and self.verbosity == 1:
-            self.logger.setLevel(logging.INFO)
-        elif self.verbosity and self.verbosity >= 2:
+        self.logger.setLevel(logging.INFO)
+        if self.verbosity and self.verbosity >= 1:
             self.logger.setLevel(logging.DEBUG)
         if self.quiet:
             self.logger.setLevel(logging.ERROR)
@@ -85,7 +83,11 @@ class SewageQuality:
                     None,  # if one biomarker is below threshold
                     measurements_df[biomarker1] / measurements_df[biomarker2])
 
-    def __get_last_biomarkers_for_last_N_measurements(self, measurements_df, index, biomarker1, biomarker2):
+    def __get_previous_biomarkers(self, measurements_df, index, biomarker1, biomarker2):
+        """
+          Obtain last biomarker ratios for the previous measurements starting from current measurement.
+          Remove previously detected outliers and empty ratios.
+        """
         max_idx = (index - 1 - self.max_number_measurements_for_outlier_detection) \
             if (index - 1 - self.max_number_measurements_for_outlier_detection) >= 0 else 0
         min_idx = index if index >= 0 else 0
@@ -94,55 +96,78 @@ class SewageQuality:
             last_N_measurements = last_N_measurements[
                 last_N_measurements[biomarker1 + "/" + biomarker2 + "_outlier"] != True]
         else:
-            self.logger.debug("no confidence interval calculated yet")
+            self.logger.debug("No outliers detected yet")
         biomarker_ratios = last_N_measurements[biomarker1 + "/" + biomarker2]
         # remove empty ratios
         biomarker_ratios = biomarker_ratios.dropna()
         return biomarker_ratios
 
+    def __is_biomarker_outlier(self, sample_location, collectionDate, current_biomarker_ratio, last_biomarker_ratios, biomarker1, biomarker2):
+        """
+            Detect outliers for a given biomarker set using previous measurements with ...
+        """
+        # Todo: Which outlier detection should we use?
+        is_confidence_interval_99_outlier, confidence_interval = utils.is_confidence_interval_outlier(
+            current_biomarker_ratio, last_biomarker_ratios, 0.99)
+        is_iqr_outlier, iqr_range = utils.inter_quantil_range(current_biomarker_ratio, last_biomarker_ratios)
+        is_zscore_outlier, z_score_threshold = utils.is_outlier_modified_z_score(current_biomarker_ratio,
+                                                                                 last_biomarker_ratios)
+        self.logger.debug("[Biomarker outlier detection] - [Sample location: '{}'] - [Collection date: '{}']\n"
+                          "\tBiomarker ratio: {}\t\n"
+                          "\tCurrent ratio:\t{}\n"
+                          "\tLast ratios:\t{}\n"
+                          "\tIs Z-score-outlier:\t\t{}\t(Threshold: {} < 3.5)\n"
+                          "\tIs IQR-outlier:\t{}\t\tRange: {}\n"
+                          "\tIs 99% confidence interval outlier:\t{}\tRange: {}".format(sample_location,
+                                collectionDate, biomarker1 + "/" + biomarker2, current_biomarker_ratio,
+                                ['%.4f' % elem for elem in last_biomarker_ratios.tolist()], is_zscore_outlier, z_score_threshold,
+                                is_iqr_outlier, iqr_range, is_confidence_interval_99_outlier, confidence_interval))
+        if is_zscore_outlier and is_iqr_outlier:
+            return True
+        return False
+
     def __detect_outliers(self, sample_location, measurements_df):
+        """
+           For each measurement and biomarker pair outliers will be marked.
+        """
+        skipped = 0
+        stat_dict = dict()
         for index, current_measurement in measurements_df.iterrows():
             for biomarker1, biomarker2 in itertools.combinations(self.biomarker_columns, 2):
+                utils.add_default_biomarker_statistic(stat_dict, biomarker1, biomarker2)
                 current_biomarker_ratio = current_measurement[biomarker1 + "/" + biomarker2]
                 if current_biomarker_ratio:  # only if biomarker ratio is not None for current measurement
-                    biomarker_ratios = self.__get_last_biomarkers_for_last_N_measurements(
-                        measurements_df, index, biomarker1, biomarker2)
+                    stat_dict[biomarker1 + "/" + biomarker2]["total"] += 1
+                    last_biomarker_ratios = self.__get_previous_biomarkers(measurements_df, index, biomarker1, biomarker2)
                     measurements_df.at[index, Flag.NOT_ENOUGH_BIOMARKERS_FOR_OUTLIER_DETECTION.name] = False
-                    if len(biomarker_ratios) < self.minimal_number_measurements_for_outlier_detection:
+                    if len(last_biomarker_ratios) < self.minimal_number_measurements_for_outlier_detection:
                         measurements_df.at[index, Flag.NOT_ENOUGH_BIOMARKERS_FOR_OUTLIER_DETECTION.name] = True
                         self.logger.debug("[Biomarker outlier detection] - [Sample location: '{}'] - [Collection date: '{}'] - "
                                             "Skipping biomarker outlier detection. "
                                             "\n\tFound '{}' previous measurements. "
                                             "More than '{}' previous measurements are required.".format(sample_location, current_measurement['collectionDate'],
-                                                                                                        len(biomarker_ratios),
+                                                                                                        len(last_biomarker_ratios),
                                                                                                         self.minimal_number_measurements_for_outlier_detection))
+                        stat_dict[biomarker1 + "/" + biomarker2]["skipped"] += 1
                         continue
-                    # Todo: Which outlier detection should we use?
-                    is_confidence_interval_99_outlier, confidence_interval = utils.is_confidence_interval_outlier(
-                        current_biomarker_ratio, biomarker_ratios, 0.99)
-                    is_iqr_outlier, iqr_range = utils.inter_quantil_range(current_biomarker_ratio, biomarker_ratios)
-                    is_zscore_outlier, z_score_threshold = utils.is_outlier_modified_z_score(current_biomarker_ratio,
-                                                                                   biomarker_ratios)
-                    self.logger.debug("[Biomarker outlier detection] - [Sample location: '{}'] - [Collection date: '{}']\n"
-                                      "\tBiomarker ratio: {}\t\n"
-                                      "\tCurrent ratio:\t{}\n"
-                                      "\tLast ratios:\t{}\n"
-                                      "\tIs Z-score-outlier:\t\t{}\t(Threshold: {} < 3.5)\n"
-                                      "\tIs IQR-outlier:\t{}\t\tRange: {}\n"
-                                      "\tIs 99% confidence interval outlier:\t{}\tRange: {}".format(sample_location, current_measurement['collectionDate'],
-                        biomarker1+"/"+biomarker2, current_biomarker_ratio, ['%.4f' % elem for elem in biomarker_ratios.tolist()],
-                        is_zscore_outlier, z_score_threshold, is_iqr_outlier, iqr_range, is_confidence_interval_99_outlier, confidence_interval))
-
-                    if is_zscore_outlier and is_iqr_outlier:
+                    is_outlier = self.__is_biomarker_outlier(sample_location, current_measurement['collectionDate'],
+                                                             current_biomarker_ratio, last_biomarker_ratios,
+                                                             biomarker1, biomarker2)
+                    if is_outlier:
+                        stat_dict[biomarker1 + "/" + biomarker2]["failed"] += 1
                         measurements_df.at[index, biomarker1 + "/" + biomarker2 + "_outlier"] = True
                     else:
+                        stat_dict[biomarker1 + "/" + biomarker2]["passed"] += 1
                         measurements_df.at[index, biomarker1 + "/" + biomarker2 + "_outlier"] = False
                 else:
                     self.logger.debug("[Biomarker outlier detection] - [Sample location: '{}'] - [Collection date: '{}'] - "
-                                      "Biomarker ratio '{}/{}' with value: '{}' not used as it "
-                                      "not calculated in current sample".format(sample_location, current_measurement['collectionDate'],
+                                      "Empty biomarker ratio '{}/{}' with value: '{}'. Biomarker ratio will be skipped."
+                                      .format(sample_location, current_measurement['collectionDate'],
                                                                                 biomarker1, biomarker2,
                                                                                 current_biomarker_ratio))
+
+        self.logger.info("[Biomarker outlier detection] - [Sample location: '{}'] - \n"
+                         "Biomarkers ratios:\n{}".format(sample_location, utils.pretty_print_biomarker_statistic(stat_dict)))
 
     def run_quality_control(self):
         """
@@ -156,12 +181,15 @@ class SewageQuality:
             self.sewage_samples = pickle.load(f)
 
         for sample_location, measurements in self.sewage_samples.items():
-            self.logger.info("########################  Sewage location: {}  ########################\n".format(sample_location))
+            self.logger.info("\n####################################################\n"
+                             "\tSewage location: {} \n"
+                             "####################################################".format(sample_location))
             measurements = utils.convert_sample_list2pandas(measurements)
+            self.logger.info("Total number of measurements:\t{}".format(measurements.shape[0]))
             measurements.sort_values(by='collectionDate', ascending=True, inplace=True,
                                      ignore_index=True)  # Sort by collection date. Newest first.
             # -----------------  BIOMARKER QC -----------------------
-            # 1. check for comments. Flag samples that contain any commentary
+            # 1. check for comments. Flag samples that contain any commentary.
             self.__check_comments(sample_location, measurements)
             # 2. Mark biomarker values below threshold which are excluded from the analysis.
             self.__biomarker_below_threshold(sample_location, measurements)
