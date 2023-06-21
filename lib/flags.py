@@ -6,5 +6,5 @@ class Flag(Enum):
 
     COMMENT_NOT_EMPTY = "Comment field not empty"
     BIOMARKER_BELOW_THRESHOLD = "Biomarker values are all empty or below threshold"
-    BIOMARKER_DIFFERENCE_TOO_HIGH = "Biomarker ratios are too high compared to last measurements"
-    NOT_ENOUGH_BIOMARKERS = "Not enough biomarkers"
+    BIOMARKER_NOT_IN_CONFIDENCE_INTERVAL_99 = "Biomarker ratios outside of 99% confidence interval"
+    NOT_ENOUGH_BIOMARKERS_FOR_OUTLIER_DETECTION = "Not enough biomarkers"

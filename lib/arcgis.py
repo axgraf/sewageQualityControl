@@ -6,8 +6,6 @@ from arcgis.features import FeatureLayer
 from .config import Config
 from .sewage import SewageSample
 
-logging.basicConfig(format='%(asctime)s -  %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S',
-                    stream=sys.stdout, level=logging.INFO)
 
 
 class Arcgis:
