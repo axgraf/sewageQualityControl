@@ -1,6 +1,7 @@
 # Created by alex at 20.06.23
 from .sewage import SewageSample
 from typing import List
+import datetime
 import numpy as np
 import pandas as pd
 import logging
@@ -89,3 +90,43 @@ class CustomFormatter(logging.Formatter):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
+
+class SewageLogger():
+    _instance = None
+    log = None
+    verbosity = None
+    quiet = None
+
+    def __init__(self, verbosity=None, quiet=False):
+        self.verbosity = verbosity
+        self.quiet = quiet
+        self.__initalize()
+
+    def __initalize(self):
+        if not self.log:
+            self.log = self.__setup_logger()
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = object.__new__(cls)
+        return cls._instance
+
+    def __setup_logger(self):
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
+        fmt = "%(asctime)s - %(levelname)s - %(message)s"
+        stdout_handler = logging.StreamHandler()
+        stdout_handler.setLevel(logging.INFO)
+        if self.verbosity and self.verbosity >= 1:
+            stdout_handler.setLevel(logging.DEBUG)
+        if self.quiet:
+            stdout_handler.setLevel(logging.ERROR)
+        stdout_handler.setFormatter(CustomFormatter(fmt))
+        today = datetime.date.today()
+        file_handler = logging.FileHandler('sewage_quality_{}.log'.format(today.strftime('%Y_%m_%d')), mode='w')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(stdout_handler)
+        logger.addHandler(file_handler)
+        return logger
