@@ -9,7 +9,7 @@ import lib.utils as utils
 class SewageQuality:
 
     def __init__(self, verbosity, quiet, min_biomarker_threshold, minimal_number_measurements_for_outlier_detection,
-                 max_number_measurements_for_outlier_detection, min_number_of_valid_biomarkers):
+                 max_number_measurements_for_outlier_detection, min_number_of_valid_biomarkers, periode_month_surrogatevirus):
         self.sewage_samples = None
         self.verbosity = verbosity
         self.quiet = quiet
@@ -17,6 +17,7 @@ class SewageQuality:
         self.minimal_number_measurements_for_outlier_detection = minimal_number_measurements_for_outlier_detection
         self.max_number_measurements_for_outlier_detection = max_number_measurements_for_outlier_detection
         self.min_number_of_valid_biomarkers = min_number_of_valid_biomarkers
+        self.periode_month_surrogatevirus = periode_month_surrogatevirus
         self.logger = utils.SewageLogger(verbosity, quiet)
 
     def __check_comments(self, sample_location, measurements_df):
@@ -48,7 +49,7 @@ class SewageQuality:
             measurements = utils.convert_sample_list2pandas(measurements)
             self.logger.log.info("Total number of measurements:\t{}".format(measurements.shape[0]))
             measurements.sort_values(by='collectionDate', ascending=True, inplace=True,
-                                     ignore_index=True)  # Sort by collection date. Newest first.
+                                     ignore_index=True)  # Sort by collection date. Newest first. Ascending important!
             # -----------------  BIOMARKER QC -----------------------
             # 1. check for comments. Flag samples that contain any commentary.
             self.__check_comments(sample_location, measurements)
@@ -61,7 +62,7 @@ class SewageQuality:
             # 5. Select measurements with enough biomarker values which are not outliers
             biomarkerQC.select_minimal_required_biomarkers(sample_location, measurements)
             # 6.
-            biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
+            #biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
 
             # Todo: @Alex
             # --------------------  SUROGATVIRUS QC -------------------
@@ -84,11 +85,14 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--min_number_of_valid_biomarkers', metavar="INT", default=2, type=int,
                         help="The minimal number of biomarkers required",
                         required=False)
+    parser.add_argument('-d', '--periode_month_surrogatevirus', metavar="INT", default=4, type=int,
+                        help="The periode of time (month) taken into account for surrogatevirus outliers",
+                        required=False)
     parser.add_argument('-v', '--verbosity', action="count", help="Increase output verbosity. Can be used multiple times.")
     parser.add_argument('-q', '--quiet', action='store_true', help="Print litte output.")
     args = parser.parse_args()
     sewageQuality = SewageQuality(args.verbosity, args.quiet, args.biomarker_min_threshold,
                                   args.min_number_measurements_for_outlier_detection,
                                   args.max_number_measurements_for_outlier_detection,
-                                  args.min_number_of_valid_biomarkers)
+                                  args.min_number_of_valid_biomarkers, args.periode_month_surrogatevirus)
     sewageQuality.run_quality_control()
