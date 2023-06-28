@@ -15,33 +15,43 @@ class Arcgis:
         self.regions2plants = dict()
         self.sewage_samples = dict()
         self.config = config
-        #self.__connnect_gis(config.gis_url, config.gis_user, config.gis_password)
+        self.__connnect_gis(config.gis_url, config.gis_user, config.gis_password)
 
     def obtain_sewage_samples(self):
+        self.__connnect_gis(self.config.gis_url, self.config.gis_user, self.config.gis_password)
+        self.__get_sewage_plants()
+        self.__get_messwerte()
         import pickle
         import os
-        if not os.path.exists('bin.dat'):
-            self.__connnect_gis(self.config.gis_url, self.config.gis_user, self.config.gis_password)
-            self.__get_messwerte()
-            with open('bin.dat', 'wb') as f:
+        if not os.path.exists('sewageData.dat'):
+            with open('sewageData.dat', 'wb') as f:
                 pickle.dump(self.sewage_samples, f)
-        else:
-            import pickle
-            with open('bin.dat', 'rb') as f:
-                self.sewage_samples = pickle.load(f)
-        return self.sewage_samples
+        if not os.path.exists('sewagePlantData.dat'):
+            with open('sewagePlantData.dat', 'wb') as f:
+                pickle.dump(self.sewage_plants, f)
+        return self.sewage_samples, self.sewage_plants
 
     #        self.__loess_regression()
 
     def __connnect_gis(self, gis_url, user, password):
         logging.info("Connect to ARCGIS server...")
         self.gis = GIS(gis_url, user, password)
-        groups = self.gis.groups.search('title: LB Bayern (LBBY)')  # obtain group
-        group_content = groups[0].content()
-        #        test = FeatureLayer('https://services-eu1.arcgis.com/e0dlK9aWS0lF3hlT/arcgis/rest/services/Messtellen_mit_Messwerten_Bayern/FeatureServer/0')# get content of group, used to get Ids for the data below
-        #        sample_features = test.query().features
+#        groups = self.gis.groups.search('title: LB Bayern (LBBY)')  # obtain group
+#        group_content = groups[0].content()
+
         self.monitoring_daten = self.gis.content.get('d3b1c622cceb40e48353da110fde73b8')
         self.messstellen_bayern = self.gis.content.get('2de71e70d30945768f24b71158a38d66')
+
+
+    def __get_sewage_plants(self):
+        logging.info("Obtain sewage plants infos...")
+        self.sewage_plants = dict()
+        sewage_plant_layer = FeatureLayer(
+            'https://services-eu1.arcgis.com/e0dlK9aWS0lF3hlT/arcgis/rest/services/PTKA_DB_Mod_v3_VIEW_ReadONLY_d0bb0/FeatureServer/0')  # get content of group, used to get Ids for the data below
+        sewage_plants = sewage_plant_layer.query().features
+        for feature in sewage_plants:
+            self.sewage_plants[feature.attributes['NAME']] = feature.attributes['TW_ABFLUSS']
+
 
     def __get_messwerte(self):
         logging.info("Obtain measurements...")

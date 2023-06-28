@@ -5,7 +5,10 @@ import datetime
 import numpy as np
 import pandas as pd
 import logging
+import tqdm
 import scipy.stats as st
+from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
 
 
 def convert_sample_list2pandas(measurements: List[SewageSample]):
@@ -13,35 +16,88 @@ def convert_sample_list2pandas(measurements: List[SewageSample]):
     return table
 
 
-def is_outlier_modified_z_score(test_value: float, values: List[float]):
-    median = np.median(values)
-    abs_diff = np.abs(values - median)
+def is_outlier_local_outlier_factor(test_value: float, train_values: List[float], contamination='auto'):
+    """
+    The Local Outlier Factor measures the local deviation of the density of a given sample with respect to its neighbors.
+    It is local in that the anomaly score depends on how isolated the object is with respect to the surrounding neighborhood.
+    More precisely, locality is given by k-nearest neighbors, whose distance is used to estimate the local density.
+    By comparing the local density of a sample to the local densities of its neighbors, one can identify samples
+    that have a substantially lower density than their neighbors. These are considered outliers.
+
+    :param test_value: the value to be checked as an outlier
+    :param train_values: values to be used for training the model
+    :param contamination:  the amount of contamination, i.e. the proportion of outliers in the data set. Range should be: (0, 0.5]
+    """
+    X = np.array(train_values).reshape(-1, 1)
+    neighbours = 20 if len(X) > 20 else len(X) - 1
+    lof_novelty = LocalOutlierFactor(n_neighbors=neighbours, novelty=True, contamination=contamination).fit(X)
+    test_value = np.array(test_value).reshape(1, -1)
+    prediction = lof_novelty.predict(test_value)
+    return prediction[0] == -1
+
+
+def is_outlier_isolation_forest(test_value: float, train_values: List[float], contamination=0.1):
+    """
+    The IsolationForest ‘isolates’ observations by randomly selecting a feature and then randomly selecting a
+    split value between the maximum and minimum values of the selected feature.Since recursive partitioning can be
+    represented by a tree structure, the number of splittings required to isolate a sample is equivalent to the
+    path length from the root node to the terminating node. This path length, averaged over a forest
+    of such random trees, is a measure of normality and our decision function. Random partitioning produces noticeably
+    shorter paths for anomalies. Hence, when a forest of random trees collectively produce shorter path lengths
+    for particular samples, they are highly likely to be anomalies.
+
+    :param test_value: the value to be checked as an outlier
+    :param train_values: values to be used for training the model
+    :param contamination:  the amount of contamination, i.e. the proportion of outliers in the data set. Range should be: (0, 0.5]
+    """
+    X = pd.DataFrame(train_values)
+    X.rename(columns={X.columns[0]: 'samples'}, inplace=True)
+    model = IsolationForest(n_estimators=100, warm_start=False, contamination=contamination,
+                            n_jobs=4)  # contamination="auto" else range should be (0, 0.5]
+    model.fit(X.values)
+    test = np.array(test_value).reshape(1, -1)
+    score = model.decision_function(test)
+    outlier = model.predict(test)
+    return outlier[0] == -1, score
+
+
+def is_outlier_modified_z_score(test_value: float, train_values: List[float]):
+    train_values = train_values.tolist()
+    median = np.median(train_values)
+    abs_diff = np.abs(train_values - median)
     median_abs_diff = np.median(abs_diff)
-    modified_zscore = 0.6745 * (test_value - median) / median_abs_diff
-    return modified_zscore > 3.5, modified_zscore
+    modified_zscore = 0.6745 * ((test_value - median) / median_abs_diff)
+    max_standard_deviation = 3.5  # how many std deviations; good value
+    return modified_zscore > max_standard_deviation, modified_zscore
 
 
-def inter_quantil_range(test_value: float, values: List[float]):
-    q1 = np.quantile(values, 0.25)
-    q3 = np.quantile(values, 0.75)
+def inter_quantil_range(test_value: float, train_values: List[float]):
+    train_values = train_values.tolist()
+    q1 = np.quantile(train_values, 0.25)
+    q3 = np.quantile(train_values, 0.75)
     iqr = q3 - q1
-    # IQR multiplier of 1.7 is similar to stdev multiplier of 3, else use 1.5
-    minimum = q1 - 1.7 * iqr
-    maximum = q3 + 1.7 * iqr
+    # calculation for multiplier selection based on the standard deviation
+    # std_dev = 3.5
+    # multiplier = (std_dev - 0.675)/(0.675 + 0.675)
+    # e.g. IQR multiplier of 1.7 = standard deviation of 3; 1.5 = standard deviation of 2.7
+    multiplier = 1.7
+    minimum = q1 - multiplier * iqr
+    maximum = q3 + multiplier * iqr
     if minimum <= test_value <= maximum:
         return False, (minimum, maximum)
     return True, (minimum, maximum)
 
 
-def is_confidence_interval_outlier(test_value: float, values: List[float], confidence: float):
-    if len(values) < 30:  ## use t-distribution in case less than 30 samples are used
-        confidence_interval = st.t.interval(alpha=confidence, df=len(values) - 1,
-                                            loc=np.mean(values),
-                                            scale=st.sem(values))
+def is_confidence_interval_outlier(test_value: float, train_values: List[float], confidence: float):
+    train_values = train_values.tolist()
+    if len(train_values) < 30:  # use t-distribution in case less than 30 samples are used
+        confidence_interval = st.t.interval(alpha=confidence, df=len(train_values) - 1,
+                                            loc=np.mean(train_values),
+                                            scale=st.sem(train_values))
     else:  # use normal distribution
         confidence_interval = st.norm.interval(alpha=confidence,
-                                               loc=np.mean(values),
-                                               scale=st.sem(values))
+                                               loc=np.mean(train_values),
+                                               scale=st.sem(train_values))
     if confidence_interval[0] <= test_value <= confidence_interval[1]:
         return False, confidence_interval
     return True, confidence_interval
@@ -64,6 +120,7 @@ def pretty_print_biomarker_statistic(stat_dict: dict) -> str:
                 biomarker_log += "\t" + status + ":\t" + str(num) + "\t"
             biomarker_log += "\n"
     return biomarker_log
+
 
 class CustomFormatter(logging.Formatter):
     grey = '\x1b[38;21m'
@@ -92,7 +149,7 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-class SewageLogger():
+class SewageLogger:
     _instance = None
     log = None
     verbosity = None
@@ -130,3 +187,6 @@ class SewageLogger():
         logger.addHandler(stdout_handler)
         logger.addHandler(file_handler)
         return logger
+
+    def get_progress_bar(self, total, text):
+        return tqdm.tqdm(total=total, unit=' samples', colour="blue", ncols=150, desc=text)
