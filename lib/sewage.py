@@ -3,7 +3,6 @@ import sys
 import logging
 import itertools
 from datetime import datetime
-from .flags import Flag
 
 class SewageSample:
 
@@ -55,8 +54,6 @@ class SewageSample:
         self.loess_regression_value = None
         self.loess_percentage_difference_seven_days_before = None
 
-        self.flags = []
-        self.discarded = False
 
     def has_collection_date(self):
         return bool(self.collectionDate)
@@ -64,42 +61,5 @@ class SewageSample:
     def has_neccessary_values(self):
         return self.has_collection_date and self.mean_norm_genes and self.qualified != "Nein"
 
-    def is_biomarker_below_threshold(self, biomarker_name, threshold):
-        if biomarker_name in self.get_biomarkers_dict():
-            biomarker_value = self.get_biomarkers_dict()[biomarker_name]
-            if biomarker_value is None or biomarker_value < threshold:
-                return True
-        return False
 
-    def get_biomarkers_dict(self):
-        biomarkers_dict = {
-            'N1': self.biomarker_N1,
-            'N2': self.biomarker_N2,
-            'N3': self.biomarker_N3,
-            'E': self.biomarker_E,
-            'ORF': self.biomarker_ORF,
-            'RDRP': self.biomarker_RDRP,
-        }
-        return biomarkers_dict
-
-    def get_biomarker_ratios(self, threshold):
-        biomarker_dict = self.get_biomarkers_dict()
-        biomarker_ratio = dict()
-        res = list(itertools.combinations(biomarker_dict, 2))
-        for biomarker_tuple in res:
-            biomarker1 = biomarker_tuple[0]
-            biomarker2 = biomarker_tuple[1]
-            test = biomarker_dict[biomarker1]
-            if not self.is_biomarker_below_threshold(biomarker1, threshold) and not self.is_biomarker_below_threshold(biomarker2, threshold):
-                ratio = biomarker_dict[biomarker1] / biomarker_dict[biomarker2]
-            else:
-                ratio = None
-            biomarker_ratio[biomarker1+"_"+biomarker2] = ratio
-        return biomarker_ratio
-
-    def has_flags(self):
-        return len(self.flags) > 0
-
-    def set_flag(self, flag: Flag):
-        self.flags.append(flag)
 

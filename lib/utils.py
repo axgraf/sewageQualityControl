@@ -1,7 +1,8 @@
 # Created by alex at 20.06.23
-from .sewage import SewageSample
+import sys
 from typing import List
 import datetime
+import dateutil.relativedelta
 import numpy as np
 import pandas as pd
 import logging
@@ -9,11 +10,33 @@ import tqdm
 import scipy.stats as st
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
+from .sewage import SewageSample
+from .constant import *
 
 
 def convert_sample_list2pandas(measurements: List[SewageSample]):
     table = pd.DataFrame.from_records([vars(s) for s in measurements])
     return table
+
+
+def detect_outliers(outlier_statitics, train_values, test_value):
+    outlier_detected = []
+    if 'lof' in outlier_statitics or 'all' in outlier_statitics:
+        is_lof_outlier = is_outlier_local_outlier_factor(test_value, train_values)
+        outlier_detected.append(is_lof_outlier)
+    if 'rf' in outlier_statitics or 'all' in outlier_statitics:
+        is_isolation_forest_outlier, isolation_forest_score_ratio = is_outlier_isolation_forest(test_value, train_values)
+        outlier_detected.append(is_isolation_forest_outlier)
+    if 'ci' in outlier_statitics or 'all' in outlier_statitics:
+        is_confidence_interval_99_outlier, confidence_interval = is_confidence_interval_outlier(test_value, train_values,  0.99)
+        outlier_detected.append(is_confidence_interval_99_outlier)
+    if 'iqr' in outlier_statitics or 'all' in outlier_statitics:
+        is_iqr_outlier, iqr_range = interquartile_range(test_value, train_values)
+        outlier_detected.append(is_iqr_outlier)
+    if 'zscore' in outlier_statitics or 'all' in outlier_statitics:
+        is_zscore_outlier, z_score_threshold = is_outlier_modified_z_score(test_value, train_values)
+        outlier_detected.append(is_zscore_outlier)
+    return all(outlier_detected)
 
 
 def is_outlier_local_outlier_factor(test_value: float, train_values: List[float], contamination='auto'):
@@ -39,7 +62,7 @@ def is_outlier_local_outlier_factor(test_value: float, train_values: List[float]
 def is_outlier_isolation_forest(test_value: float, train_values: List[float], contamination=0.1):
     """
     The IsolationForest ‘isolates’ observations by randomly selecting a feature and then randomly selecting a
-    split value between the maximum and minimum values of the selected feature.Since recursive partitioning can be
+    split value between the maximum and minimum values of the selected feature. Since recursive partitioning can be
     represented by a tree structure, the number of splittings required to isolate a sample is equivalent to the
     path length from the root node to the terminating node. This path length, averaged over a forest
     of such random trees, is a measure of normality and our decision function. Random partitioning produces noticeably
@@ -71,7 +94,7 @@ def is_outlier_modified_z_score(test_value: float, train_values: List[float]):
     return modified_zscore > max_standard_deviation, modified_zscore
 
 
-def inter_quantil_range(test_value: float, train_values: List[float]):
+def interquartile_range(test_value: float, train_values: List[float]):
     train_values = train_values.tolist()
     q1 = np.quantile(train_values, 0.25)
     q3 = np.quantile(train_values, 0.75)
@@ -101,6 +124,28 @@ def is_confidence_interval_outlier(test_value: float, train_values: List[float],
     if confidence_interval[0] <= test_value <= confidence_interval[1]:
         return False, confidence_interval
     return True, confidence_interval
+
+
+def get_last_N_month(measurements_df: pd.DataFrame, current_measurement, column_names, num_month, sewage_flag: SewageFlag=None):
+    """
+    obtain last values from last N month from the data frame. In case a flag is provided values that do have the flag set
+    will be filtered.
+
+    :param measurements_df: full data frame ot select last values
+    :param current_measurement: current value
+    :param column_names: which column name should be selected
+    :param num_month: number of last month to select values
+    :param sewage_flag: Sewage flag to filter for previous outliers; must be not set in flags
+    :return: data frame with entries from last N month
+    """
+    min_date = current_measurement[Columns.DATE.value] + dateutil.relativedelta.relativedelta(months=-num_month)
+    last_values = measurements_df[(measurements_df[Columns.DATE.value] >= min_date) &
+                                  (measurements_df[Columns.DATE.value] < current_measurement[Columns.DATE.value])]
+    # remove outliers based on sewage_flag -> filters values which do not have the flag
+    if sewage_flag:
+        last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[Columns.FLAG.value], sewage_flag)]
+    last_values = last_values[last_values[column_names].notna()]
+    return last_values
 
 
 def add_default_biomarker_statistic(stat_dict: dict, biomarker1, biomarker2) -> None:
@@ -189,4 +234,4 @@ class SewageLogger:
         return logger
 
     def get_progress_bar(self, total, text):
-        return tqdm.tqdm(total=total, unit=' samples', colour="blue", ncols=150, desc=text)
+        return tqdm.tqdm(total=total, unit=' samples', colour="blue", ncols=150, desc=text, file=sys.stdout)
