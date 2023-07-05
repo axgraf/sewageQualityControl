@@ -18,10 +18,6 @@ class SewageFlag(Flag):
     NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES = auto()
     BIOMARKER_RATIO_OUTLIER = auto()
 
-    ### surrogatvirus flags ###
-    SURROGATEVIRUS_VALUE_NOT_USABLE = auto()
-    SURROGATEVIRUS_OUTLIER = auto()
-
     ### water quality ####
     NOT_ENOUGH_AMMONIUM_VALUES = auto()
     AMMONIUM_OUTLIER = auto()
@@ -86,16 +82,6 @@ class SewageFlag(Flag):
         else:
             raise ValueError("The given flag is not of type 'SewageFlag'")
 
-    @staticmethod
-    def is_not_flag(flag_value: int, sewage_flag) -> bool:
-        """
-        Check if a flag is NOT set
-        """
-        if isinstance(sewage_flag, SewageFlag):
-            return (sewage_flag.value & flag_value) == 0
-        else:
-            raise ValueError("The given flag is not of type 'SewageFlag'")
-
 
 class Columns(Enum):
 
@@ -111,17 +97,12 @@ class Columns(Enum):
     BIOMARKER_RDRP = 'biomarker_RDRP'
     AMMONIUM = "nh4n"
     CONDUCTIVITY = "lf"
-    CROSSPHAGE = "crassphage"
-    PMMOV = "pmmov"
-    TROCKENTAG = "trockentag"
 
     # additional columns for analyses #
     FLAG = "flag"
     BIOMARKER_FLAG = "flag_biomaker"
     BIOMARKER_RATIO_FLAG = "flag_ratio"
     NUMBER_OF_USABLE_BIOMARKERS = "num_usable_biomarkers"
-    SURROGATEVIRUS_FLAG = "flag_surrogatevirus"
-    SURROGATEVIRUS_OUTLIER_FLAG = "flag_surrogatevirus_outlier"
 
     @staticmethod
     def get_biomarker_columns():
@@ -137,15 +118,3 @@ class Columns(Enum):
     @staticmethod
     def get_biomaker_ratio_flag(biomarker1, biomarker2):
         return Columns.BIOMARKER_RATIO_FLAG.value + "_" + biomarker1 + "/" + biomarker2
-
-    @staticmethod
-    def get_surrogatevirus_columns():
-        surrogatevirus_columns = [Columns.CROSSPHAGE.value, Columns.PMMOV.value]
-        return surrogatevirus_columns
-    @staticmethod
-    def get_surrogate_outlier_flag(sVirus):
-        return Columns.SURROGATEVIRUS_OUTLIER_FLAG.value + "_" + sVirus
-
-    @staticmethod
-    def get_surrogate_flag(sVirus):
-        return Columns.SURROGATEVIRUS_FLAG.value + "_" + sVirus
