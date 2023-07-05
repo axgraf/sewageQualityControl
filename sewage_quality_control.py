@@ -5,15 +5,17 @@ import numpy as np
 from lib.arcgis import *
 from lib.constant import *
 from lib.biomarkerQC import BiomarkerQC
+from lib.surrogatevirusQC import SurrogatevirusQC
 from lib.water_quality import WaterQuality
 import lib.utils as utils
 
 
 class SewageQuality:
 
-    def __init__(self, output_folder, verbosity, quiet, biomarker_outlier_statistics, min_biomarker_threshold,
-                 min_number_biomarkers_for_outlier_detection,
+    def __init__(self, output_folder, verbosity, quiet, biomarker_outlier_statistics,
+                 min_biomarker_threshold, min_number_biomarkers_for_outlier_detection,
                  max_number_biomarkers_for_outlier_detection, report_number_of_biomarker_outlier, periode_month_surrogatevirus,
+                 surrogatevirus_outlier_statistics, min_number_surrogatevirus_for_outlier_detection,
                  water_quality_number_of_last_month, min_number_of_last_measurements_for_water_qc, water_qc_outlier_statistics):
         self.sewage_samples = None
         self.output_folder = output_folder
@@ -27,6 +29,8 @@ class SewageQuality:
         self.report_number_of_biomarker_outlier = report_number_of_biomarker_outlier
         # Surrogate virus
         self.periode_month_surrogatevirus = periode_month_surrogatevirus
+        self.surrogatevirus_outlier_statistics = surrogatevirus_outlier_statistics
+        self.min_number_surrogatevirus_for_outlier_detection = min_number_surrogatevirus_for_outlier_detection
         # Water quality
         self.water_quality_number_of_last_month = water_quality_number_of_last_month
         self.min_number_of_last_measurements_for_water_qc = min_number_of_last_measurements_for_water_qc
@@ -44,6 +48,9 @@ class SewageQuality:
                                   self.report_number_of_biomarker_outlier)
         self.water_quality = WaterQuality(self.output_folder, self.water_quality_number_of_last_month,
                                           self.min_number_of_last_measurements_for_water_qc, self.water_qc_outlier_statistics)
+        self.surrogateQC = SurrogatevirusQC(self.periode_month_surrogatevirus,
+                                     self.min_number_surrogatevirus_for_outlier_detection,
+                                     self.biomarker_outlier_statistics, self.output_folder)
 
     def __check_comments(self, sample_location, measurements_df: pd.DataFrame):
         """ Flags a sewage sample if any text is stored in column 'bem_lab' or 'bem_pn' """
@@ -64,6 +71,10 @@ class SewageQuality:
             measurements[Columns.get_biomarker_flag(biomarker)] = 0
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
             measurements[Columns.get_biomaker_ratio_flag(biomarker1, biomarker2)] = 0
+        for sVirus in Columns.get_surrogatevirus_columns():
+            measurements[Columns.get_surrogate_flag(sVirus)] = 0
+        for sVirus in Columns.get_surrogatevirus_columns():
+            measurements[Columns.get_surrogate_outlier_flag(sVirus)] = 0
 
     def run_quality_control(self):
         """
@@ -93,7 +104,7 @@ class SewageQuality:
             self.__initalize_flags(measurements)
 
             # -----------------  BIOMARKER QC -----------------------
-            # 1. check for comments. Flag samples that contain any commentary.
+            #1. check for comments. Flag samples that contain any commentary.
             self.__check_comments(sample_location, measurements)
             # 2. Mark biomarker values below threshold which are excluded from the analysis.
             self.biomarkerQC.biomarker_below_threshold(sample_location, measurements)
@@ -112,9 +123,9 @@ class SewageQuality:
             # --------------------  SUROGATVIRUS QC -------------------
 
             # Experimental: Final step explain flags
-            measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[Columns.FLAG.value])
-
-
+            #measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[Columns.FLAG.value])
+            self.surrogateQC.filter_dry_days_time_frame(sample_location, measurements)
+            self.surrogateQC.is_surrogatevirus_outlier(sample_location, measurements)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -157,6 +168,22 @@ if __name__ == '__main__':
     surrogatevirus_group.add_argument('--periode_month_surrogatevirus', metavar="INT", default=4, type=int,
                         help="The periode of time (month) taken into account for surrogatevirus outliers. (default: 4)",
                         required=False)
+    surrogatevirus_group.add_argument('--min_number_surrogatevirus_for_outlier_detection', metavar="FLOAT", default=2, type=float,
+                        help="Minimal number of surrogatevirus measurements. (default: 2)",
+                        required=False)
+    surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['ci'], nargs='+',
+                                    help=(
+                                        "Which outlier detection methods should be used for surrogatevirus qc? Multiple selections allowed. (default: 'rf','iqr')\n"
+                                        "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
+                                        "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
+                                        "\tlof = local outlier factor\n"
+                                        "\trf = random forest\n"
+                                        "\tiqr = interquartile range\n"
+                                        "\tzscore = modified z-score\n"
+                                        "\tci = 99% confidence interval\n"
+                                        "\tall = use all methods\n"),
+                                    choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
+                                    required=False)
 
     water_quality_group = parser.add_argument_group("Water quality")
     water_quality_group.add_argument('--water_quality_number_of_last_month', metavar="INT", default=4, type=int,
@@ -183,7 +210,9 @@ if __name__ == '__main__':
                                   args.min_number_biomarkers_for_outlier_detection,
                                   args.max_number_biomarkers_for_outlier_detection,
                                   args.report_number_of_biomarker_outliers, args.periode_month_surrogatevirus,
+                                  args.surrogatevirus_outlier_statistics, args.min_number_surrogatevirus_for_outlier_detection,
                                   args.water_quality_number_of_last_month,
                                   args.min_number_of_last_measurements_for_water_qc, args.water_qc_outlier_statistics)
+
     sewageQuality.run_quality_control()
 
