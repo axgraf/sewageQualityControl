@@ -64,6 +64,36 @@ def plot_biomarker_outlier_summary(measurements_df, sample_location, output_fold
         plt.show()
         g.savefig(os.path.join(output_folder, "Biomarker_qc_{}.png".format(sample_location)), dpi=300)
 
+def plot_surrogatvirus (measurements_df, sample_location, output_folder, outlier_detection_methods):
+    create_output_folder(output_folder)
+
+    plot_frame = pd.DataFrame()
+
+    for sVirus in Columns.get_surrogatevirus_columns():
+        dat = pd.DataFrame()
+        dat['date'] = measurements_df[Columns.DATE.value]
+        dat['value'] = measurements_df[sVirus]
+        dat['type'] = sVirus
+        dat['outlier'] = np.where(
+            (SewageFlag.is_flag_set_for_series(measurements_df[Columns.get_surrogate_flag(sVirus)],
+                                               SewageFlag.SURROGATEVIRUS_VALUE_NOT_USABLE)),
+            'not tested', np.where((SewageFlag.is_flag_set_for_series(
+                measurements_df[Columns.get_surrogate_outlier_flag(sVirus)], SewageFlag.SURROGATEVIRUS_OUTLIER)),
+                'outlier', 'inlier'))
+        plot_frame = plot_frame.append(dat)
+
+    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=3.5, aspect=6, sharey=False)
+    min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-2)
+    max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=2)
+    g.set(xlim=(min_date, max_date))
+    g.map_dataframe(sns.scatterplot, x="date", y="value", hue="outlier", palette=get_label_colors())
+    g.add_legend()
+    g.set_titles(row_template='{row_name}', col_template='{col_name}')
+    g.fig.subplots_adjust(top=0.9)
+    g.fig.suptitle("Surrogatvirus quality control for '{}' -  Outlier detection methods: {}".format(sample_location, outlier_detection_methods),  fontsize=16)
+    plt.show()
+    g.savefig(os.path.join(output_folder, "Surrogatvirus_quality_control_{}.png".format(sample_location)), dpi=300)
+
 
 def plot_water_quality(measurements_df, sample_location, output_folder, outlier_detection_methods):
     create_output_folder(output_folder)

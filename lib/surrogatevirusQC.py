@@ -93,6 +93,9 @@ class SurrogatevirusQC:
                 "[Surrogatevirus outlier detection] - [Sample location: '{}']\n Final outcome: {}".format(
                     sample_location, surrogatevirus_quality_stats))
 
+        plot_surrogatvirus(measurements_df, sample_location, os.path.join(self.output_folder, "surrogatvirus"),
+                           self.surrogatevirus_outlier_statistics)
+
         #TODO Datensatz aussortieren, wenn beide Surrogatviren geflagged
 
 
