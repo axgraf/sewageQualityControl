@@ -1,4 +1,5 @@
 # Created by alex at 20.06.23
+import os.path
 import sys
 from typing import List
 import datetime
@@ -28,7 +29,7 @@ def detect_outliers(outlier_statitics, train_values, test_value):
         is_isolation_forest_outlier, isolation_forest_score_ratio = is_outlier_isolation_forest(test_value, train_values)
         outlier_detected.append(is_isolation_forest_outlier)
     if 'ci' in outlier_statitics or 'all' in outlier_statitics:
-        is_confidence_interval_99_outlier, confidence_interval = is_confidence_interval_outlier(test_value, train_values,  0.99)
+        is_confidence_interval_99_outlier, confidence_interval = is_confidence_interval_outlier(test_value, train_values, 0.99)
         outlier_detected.append(is_confidence_interval_99_outlier)
     if 'iqr' in outlier_statitics or 'all' in outlier_statitics:
         is_iqr_outlier, iqr_range = interquartile_range(test_value, train_values)
@@ -126,25 +127,30 @@ def is_confidence_interval_outlier(test_value: float, train_values: List[float],
     return True, confidence_interval
 
 
-def get_last_N_month(measurements_df: pd.DataFrame, current_measurement, column_names, num_month, sewage_flag: SewageFlag=None):
+def get_last_N_month_and_days(measurements_df: pd.DataFrame, current_measurement, column_name, num_month, num_days, sewage_flag: SewageFlag = None):
     """
     obtain last values from last N month from the data frame. In case a flag is provided values that do have the flag set
     will be filtered.
 
     :param measurements_df: full data frame ot select last values
     :param current_measurement: current value
-    :param column_names: which column name should be selected
+    :param column_name: remove NA from selected column
     :param num_month: number of last month to select values
+    :param num_days: number of last days to select values
     :param sewage_flag: Sewage flag to filter for previous outliers; must be not set in flags
     :return: data frame with entries from last N month
     """
-    min_date = current_measurement[Columns.DATE.value] + dateutil.relativedelta.relativedelta(months=-num_month)
+    min_date = current_measurement[Columns.DATE.value]
+    if num_month > 0:
+        min_date = min_date + dateutil.relativedelta.relativedelta(months=-num_month)
+    if num_days > 0:
+        min_date = min_date + dateutil.relativedelta.relativedelta(days=-num_days)
     last_values = measurements_df[(measurements_df[Columns.DATE.value] >= min_date) &
                                   (measurements_df[Columns.DATE.value] < current_measurement[Columns.DATE.value])]
     # remove outliers based on sewage_flag -> filters values which do not have the flag
     if sewage_flag:
-        last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[Columns.FLAG.value], sewage_flag)]
-    last_values = last_values[last_values[column_names].notna()]
+        last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[CalculatedColumns.FLAG.value], sewage_flag)]
+    last_values = last_values[last_values[column_name].notna()]
     return last_values
 
 
@@ -200,12 +206,15 @@ class SewageLogger:
     verbosity = None
     quiet = None
 
-    def __init__(self, verbosity=None, quiet=False):
+    def __init__(self, output_folder, verbosity=None, quiet=False):
+        self.output_folder = os.path.join(output_folder, "logs")
         self.verbosity = verbosity
         self.quiet = quiet
         self.__initalize()
 
     def __initalize(self):
+        if not os.path.exists(self.output_folder):
+            os.makedirs(self.output_folder)
         if not self.log:
             self.log = self.__setup_logger()
 
@@ -226,7 +235,8 @@ class SewageLogger:
             stdout_handler.setLevel(logging.ERROR)
         stdout_handler.setFormatter(CustomFormatter(fmt))
         today = datetime.date.today()
-        file_handler = logging.FileHandler('sewage_quality_{}.log'.format(today.strftime('%Y_%m_%d')), mode='w')
+        log_file = os.path.join(self.output_folder, 'sewage_quality_{}.log'.format(today.strftime('%Y_%m_%d')))
+        file_handler = logging.FileHandler(log_file, mode='w')
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(logging.Formatter(fmt))
         logger.addHandler(stdout_handler)
