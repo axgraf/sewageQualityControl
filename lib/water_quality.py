@@ -7,9 +7,10 @@ from .plotting import *
 
 
 class WaterQuality:
-    def __init__(self, output_folder, water_quality_number_of_last_month,
+    def __init__(self, output_folder, interactive, water_quality_number_of_last_month,
                  min_number_of_last_measurements_for_water_qc, water_qc_outlier_statistics):
         self.output_folder = output_folder
+        self.interactive = interactive
         self.water_quality_number_of_last_month = water_quality_number_of_last_month
         self.min_number_of_last_measurements_for_water_qc = min_number_of_last_measurements_for_water_qc
         self.water_qc_outlier_statistics = water_qc_outlier_statistics
@@ -18,7 +19,7 @@ class WaterQuality:
     def check_water_quality(self, sample_location, measurements_df: pd.DataFrame):
         self.__detect_outliers_in_ammonium(sample_location, measurements_df)
         self.__detect_outliers_in_conductivity(sample_location, measurements_df)
-        plot_water_quality(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "water_quality"), self.water_qc_outlier_statistics)
+        plot_water_quality(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "water_quality"), self.water_qc_outlier_statistics, self.interactive)
 
     def __detect_outliers_in_ammonium(self, sample_location, measurements_df: pd.DataFrame):
         self.logger.log.info(
@@ -38,11 +39,11 @@ class WaterQuality:
                 if current_measurement[Columns.AMMONIUM.value] and not math.isnan(current_measurement[Columns.AMMONIUM.value]):  # only if current value is not empty
                     if not enough_last_values:
                         water_quality_stats['skipped'] += 1
-                        measurements_df.at[index, Columns.FLAG.value] += SewageFlag.NOT_ENOUGH_AMMONIUM_VALUES.value
+                        measurements_df.at[index, CalculatedColumns.FLAG.value] += SewageFlag.NOT_ENOUGH_AMMONIUM_VALUES.value
                     else:
                         is_outlier = detect_outliers(self.water_qc_outlier_statistics, last_values[Columns.AMMONIUM.value], current_measurement[Columns.AMMONIUM.value])
                         if is_outlier:
-                            measurements_df.at[index, Columns.FLAG.value] += SewageFlag.AMMONIUM_OUTLIER.value
+                            measurements_df.at[index, CalculatedColumns.FLAG.value] += SewageFlag.AMMONIUM_OUTLIER.value
                             water_quality_stats['failed'] += 1
                         else:
                             water_quality_stats['passed'] += 1

@@ -7,7 +7,8 @@ from .plotting import *
 
 class SurrogatevirusQC:
 
-    def __init__(self, periode_month_surrogatevirus, min_number_surrogatevirus_for_outlier_detection, surrogatevirus_outlier_statistics, output_folder):
+    def __init__(self, interactive, periode_month_surrogatevirus, min_number_surrogatevirus_for_outlier_detection, surrogatevirus_outlier_statistics, output_folder):
+        self.interactive = interactive
         self.periode_month_surrogatevirus = periode_month_surrogatevirus
         self.min_number_surrogatevirus_for_outlier_detection = min_number_surrogatevirus_for_outlier_detection
         self.surrogatevirus_outlier_statistics = surrogatevirus_outlier_statistics
@@ -95,7 +96,7 @@ class SurrogatevirusQC:
                     sample_location, surrogatevirus_quality_stats))
 
         plot_surrogatvirus(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "surrogatvirus"),
-                           self.surrogatevirus_outlier_statistics)
+                           self.surrogatevirus_outlier_statistics, self.interactive)
 
         #TODO Datensatz aussortieren, wenn beide Surrogatviren geflagged
 

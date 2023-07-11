@@ -6,10 +6,11 @@ from .plotting import *
 
 
 class SewageNormalization:
-    def __init__(self, max_number_of_flags_for_outlier: int,
+    def __init__(self, interactive, max_number_of_flags_for_outlier: int,
                  min_number_of_biomarkers_for_normalization: int,
                  base_reproduction_value_factor: float,
                  output_folder: str):
+        self.interactive = interactive
         self.max_number_of_flags_for_outlier = max_number_of_flags_for_outlier
         self.min_number_of_biomarkers_for_normalization = min_number_of_biomarkers_for_normalization
         self.base_reproduction_value_factor = base_reproduction_value_factor
@@ -31,8 +32,6 @@ class SewageNormalization:
         if current_measurement[CalculatedColumns.NUMBER_OF_USABLE_BIOMARKERS.value] >= self.min_number_of_biomarkers_for_normalization:
             if SewageFlag.is_not_flag(current_measurement[CalculatedColumns.FLAG.value], SewageFlag.MISSING_MEAN_SEWAGE_FLOW):
                 biomarker_values = self.__get_usable_biomarkers(current_measurement)
-                if len(biomarker_values) == 0:
-                    print("here")
                 mean_sewage_flow = current_measurement[Columns.MEAN_SEWAGE_FLOW.value]
                 mean_biomarker_value = np.mean(biomarker_values)
                 normalized_mean_biomarker = round(mean_biomarker_value * mean_sewage_flow, 2)
@@ -65,8 +64,6 @@ class SewageNormalization:
     def normalize_biomarker_values(self, sample_location: str, measurements_df: pd.DataFrame) -> None:
         for index, current_measurement in measurements_df.iterrows():
             if CalculatedColumns.needs_processing(current_measurement):
-                if index == 21:
-                    print("here")
                 normalized_mean_biomarker = self.__normalize_with_sewage_flow(measurements_df, index)
                 if normalized_mean_biomarker:
                     measurements_df.at[index, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value] = normalized_mean_biomarker
@@ -77,7 +74,7 @@ class SewageNormalization:
                     self.logger.log.warn("[Biomarker normalization] - [Sample location: '{}'] -  "
                                          "Normalized biomarker could not be calculated. Either too less valid biomarkers or mean sewage flow is missing".
                                          format(sample_location))
-        plot_biomarker_normalization(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker_normalization"))
+        plot_biomarker_normalization(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker_normalization"), self.interactive)
 
 
     def __are_comments_not_empty(self, current_measurement: pd.Series) -> bool:
@@ -176,7 +173,6 @@ class SewageNormalization:
         self.logger.log.info("[Determine outliers based on all flags] - [Sample location: '{}'] -  "
                              "Detected outliers '{}/{}' from all quality control steps.\nOutlier reasons:\n{}".
                              format(sample_location, (num2process - usable), num2process, outlier_stat_dict))
-        plot_general_outliers(measurements_df, sample_location,  os.path.join(self.output_folder, "plots", "outlier"))
-        print("here")
+        plot_general_outliers(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "outlier"), self.interactive)
 
 

@@ -15,7 +15,7 @@ import lib.database as db
 
 class SewageQuality:
 
-    def __init__(self, output_folder, verbosity, quiet, rerun_all, biomarker_outlier_statistics,
+    def __init__(self, output_folder, verbosity, quiet, rerun_all, interactive, biomarker_outlier_statistics,
                  min_biomarker_threshold, min_number_biomarkers_for_outlier_detection,
                  max_number_biomarkers_for_outlier_detection, report_number_of_biomarker_outlier, periode_month_surrogatevirus,
                  surrogatevirus_outlier_statistics, min_number_surrogatevirus_for_outlier_detection,
@@ -31,6 +31,7 @@ class SewageQuality:
         self.verbosity = verbosity
         self.quiet = quiet
         self.rerun_all = rerun_all
+        self.interactive = interactive
         # biomarker qc
         self.biomarker_outlier_statistics = biomarker_outlier_statistics
         self.min_biomarker_threshold = min_biomarker_threshold
@@ -65,28 +66,28 @@ class SewageQuality:
         # self.sewage_samples = arcgis.obtain_sewage_samples()
         # Todo: switch to real data import
         import pickle
-        with open('sewageData.dat', 'rb') as f:
+        with open('data/sewageData.dat', 'rb') as f:
             self.sewage_samples = pickle.load(f)
-        with open('sewagePlantData.dat', 'rb') as f:
+        with open('data/sewagePlantData.dat', 'rb') as f:
             self.sewage_plants2trockenwetterabfluss = pickle.load(f)
 
     def __setup(self):
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
         self.database = db.SewageDatabase(self.output_folder)
-        self.biomarkerQC = BiomarkerQC(self.output_folder, self.biomarker_outlier_statistics, self.min_biomarker_threshold,
+        self.biomarkerQC = BiomarkerQC(self.output_folder, self.interactive, self.biomarker_outlier_statistics, self.min_biomarker_threshold,
                                   self.min_number_biomarkers_for_outlier_detection,
                                   self.max_number_biomarkers_for_outlier_detection,
                                   self.report_number_of_biomarker_outlier)
-        self.water_quality = WaterQuality(self.output_folder, self.water_quality_number_of_last_month,
+        self.water_quality = WaterQuality(self.output_folder, self.interactive, self.water_quality_number_of_last_month,
                                           self.min_number_of_last_measurements_for_water_qc, self.water_qc_outlier_statistics)
-        self.sewage_flow = SewageFlow(self.output_folder, self.sewage_plants2trockenwetterabfluss,
+        self.sewage_flow = SewageFlow(self.output_folder, self.interactive, self.sewage_plants2trockenwetterabfluss,
                                       self.fraction_last_samples_for_dry_flow, self.min_num_samples_for_mean_dry_flow,
                                       self.heavy_precipitation_factor, self.mean_sewage_flow_below_typo_factor, self.mean_sewage_flow_above_typo_factor)
-        self.surrogateQC = SurrogatevirusQC(self.periode_month_surrogatevirus,
+        self.surrogateQC = SurrogatevirusQC(self.interactive, self.periode_month_surrogatevirus,
                                      self.min_number_surrogatevirus_for_outlier_detection,
                                      self.biomarker_outlier_statistics, self.output_folder)
-        self.sewageNormalization = SewageNormalization(self.max_number_of_flags_for_outlier, self.min_number_of_biomarkers_for_normalization,
+        self.sewageNormalization = SewageNormalization(self.interactive, self.max_number_of_flags_for_outlier, self.min_number_of_biomarkers_for_normalization,
                                                        self.base_reproduction_value_factor, self.output_folder)
 
     def __initalize_flags(self, measurements: pd.DataFrame):
@@ -121,7 +122,7 @@ class SewageQuality:
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples.items()):
-            if idx < 5:
+            if idx < 3:
                 continue   # skip first sewage location for testing  #Todo: remove before production
             self.logger.log.info("\n####################################################\n"
                              "\tSewage location: {} \n"
@@ -193,6 +194,7 @@ if __name__ == '__main__':
                         help="Specifiy output folder. (default folder: 'sewage_qc')",
                         required=False)
     parser.add_argument('-r', '--rerun_all', action="store_true", help="Rerun the analysis on all samples.")
+    parser.add_argument('-i', '--interactive', action="store_true", help="Show plots interactively.")
     parser.add_argument('-v', '--verbosity', action="count", help="Increase output verbosity.")
     parser.add_argument('-q', '--quiet', action='store_true', help="Print litte output.")
 
@@ -205,7 +207,7 @@ if __name__ == '__main__':
                               "\trf = random forest\n"
                               "\tiqr = interquartile range\n"
                               "\tzscore = modified z-score\n"
-                              "\tci = 99% confidence interval\n"
+                              "\tci = 99%% confidence interval\n"
                               "\tall = use all methods\n") ,
                         choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
                         required=False)
@@ -238,7 +240,7 @@ if __name__ == '__main__':
                                         "\trf = random forest\n"
                                         "\tiqr = interquartile range\n"
                                         "\tzscore = modified z-score\n"
-                                        "\tci = 99% confidence interval\n"
+                                        "\tci = 99%% confidence interval\n"
                                         "\tall = use all methods\n"),
                                     choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
                                     required=False)
@@ -282,7 +284,7 @@ if __name__ == '__main__':
                                         "\trf = random forest\n"
                                         "\tiqr = interquartile range\n"
                                         "\tzscore = modified z-score\n"
-                                        "\tci = 99% confidence interval\n"
+                                        "\tci = 99%% confidence interval\n"
                                         "\tall = use all methods\n"),
                                     choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
                                     required=False)
@@ -301,7 +303,7 @@ if __name__ == '__main__':
                                    required=False)
 
     args = parser.parse_args()
-    sewageQuality = SewageQuality(args.output_folder, args.verbosity, args.quiet, args.rerun_all, args.biomarker_outlier_statistics, args.biomarker_min_threshold,
+    sewageQuality = SewageQuality(args.output_folder, args.verbosity, args.quiet, args.rerun_all, args.interactive, args.biomarker_outlier_statistics, args.biomarker_min_threshold,
                                   args.min_number_biomarkers_for_outlier_detection,
                                   args.max_number_biomarkers_for_outlier_detection,
                                   args.report_number_of_biomarker_outliers, args.periode_month_surrogatevirus,

@@ -10,10 +10,11 @@ from .plotting import *
 
 class BiomarkerQC:
 
-    def __init__(self, output_folder, biomarker_outlier_statistics, min_biomarker_threshold,
+    def __init__(self, output_folder, interactive, biomarker_outlier_statistics, min_biomarker_threshold,
                  min_number_biomarkers_for_outlier_detection,
                  max_number_biomarkers_for_outlier_detection, report_number_of_biomarker_outlier, plotting=True):
         self.output_folder = output_folder
+        self.interactive = interactive
         self.biomarker_outlier_statistics = biomarker_outlier_statistics
         self.min_biomarker_threshold = min_biomarker_threshold
         self.min_number_biomarkers_for_outlier_detection = min_number_biomarkers_for_outlier_detection
@@ -152,8 +153,10 @@ class BiomarkerQC:
                             .format(sample_location, current_measurement[Columns.DATE.value],
                                     biomarker_ratio,
                                     current_measurement[biomarker_ratio]))
+        progress_bar.close()
         if self.plotting:
-            plot_biomarker_outlier_summary(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker"), self.biomarker_outlier_statistics)
+            plot_biomarker_outlier_summary(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker"),
+                                           self.biomarker_outlier_statistics, self.interactive)
         self.logger.log.info("[Biomarker outlier detection] - [Sample location: '{}'] - \n"
                              "Biomarkers ratios:\n{}".format(sample_location,
                                                              pretty_print_biomarker_statistic(stat_dict)))
