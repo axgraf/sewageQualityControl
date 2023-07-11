@@ -233,7 +233,7 @@ if __name__ == '__main__':
                         required=False)
     surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',
                                     help=(
-                                        "Which outlier detection methods should be used for surrogatevirus qc? Multiple selections allowed. (default: 'rf','iqr')\n"
+                                        "Which outlier detection methods should be used for surrogatevirus qc? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
                                         "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                                         "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
                                         "\tlof = local outlier factor\n"
@@ -253,19 +253,19 @@ if __name__ == '__main__':
                                      required=False)
     sewage_flow_group.add_argument('--min_num_samples_for_mean_dry_flow', metavar="INT", default=5, type=int,
                                    help="If the dry flow of the sewage treatment plant is not known, "
-                                        "minimal N previous samples are required for the estimation of the dry flow rate.",
+                                        "minimal N previous samples are required for the estimation of the dry flow rate. (default: 5)",
                                    required=False)
     sewage_flow_group.add_argument('--heavy_precipitation_factor', metavar="FLOAT", default=2.0, type=float,
                                    help="Factor above which the mean flow must be in comparison to the dry weather "
-                                        "flow in order for the sample to be sorted out as a heavy rain event.",
+                                        "flow in order for the sample to be sorted out as a heavy rain event. (default: 2.0)",
                                    required=False)
     sewage_flow_group.add_argument('--mean_sewage_flow_below_typo_factor', metavar="FLOAT", default=1.5, type=float,
                                    help="Factor below which the mean flow must be in comparison to the dry weather "
-                                        "flow in order to mark the value as a probable typo.",
+                                        "flow in order to mark the value as a probable typo. (default: 1.5)",
                                    required=False)
     sewage_flow_group.add_argument('--mean_sewage_flow_above_typo_factor', metavar="FLOAT", default=9.0, type=float,
                                    help="Factor above which the mean flow must be in comparison to the dry weather "
-                                        "flow in order to mark the value as a probable typo.",
+                                        "flow in order to mark the value as a probable typo. (default: 9.0)",
                                    required=False)
 
     water_quality_group = parser.add_argument_group("Water quality control")
@@ -277,7 +277,7 @@ if __name__ == '__main__':
                                      required=False)
     water_quality_group.add_argument('--water_qc_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',
                                     help=(
-                                        "Which outlier detection methods should be used for water qc? Multiple selections allowed. (default: 'rf','iqr')\n"
+                                        "Which outlier detection methods should be used for water qc? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
                                         "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                                         "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
                                         "\tlof = local outlier factor\n"
