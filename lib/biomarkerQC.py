@@ -1,9 +1,7 @@
 # Created by alex at 22.06.23
 import math
-
 import numpy as np
 import pandas as pd
-
 from .utils import *
 from .plotting import *
 
@@ -81,11 +79,12 @@ class BiomarkerQC:
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
             biomarker1_series = measurements_df[CalculatedColumns.get_biomarker_flag(biomarker1)]
             biomarker2_series = measurements_df[CalculatedColumns.get_biomarker_flag(biomarker2)]
-            measurements_df[biomarker1 + "/" + biomarker2] = \
-                np.where((SewageFlag.is_flag_set_for_series(biomarker1_series, SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)) |
-                         (SewageFlag.is_flag_set_for_series(biomarker2_series, SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)),
-                         np.NAN,  # if one biomarker is below threshold no threshold will be calculated
-                         np.log2(list(measurements_df[biomarker1] / measurements_df[biomarker2])))
+            with np.errstate(divide='ignore'):  # ignore zero divisions as they were converted to Nan
+                measurements_df[biomarker1 + "/" + biomarker2] = \
+                    np.where((SewageFlag.is_flag_set_for_series(biomarker1_series, SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)) |
+                             (SewageFlag.is_flag_set_for_series(biomarker2_series, SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)),
+                             np.NAN,  # if one biomarker is below threshold no threshold will be calculated
+                             np.log2(list(measurements_df[biomarker1] / measurements_df[biomarker2])))
             num_valid_ratios = len(measurements_df[measurements_df[biomarker1 + "/" + biomarker2].notnull()])
             if num_valid_ratios > 0:
                 biomarkers_ratio_dict[biomarker1 + "/" + biomarker2] = num_valid_ratios
@@ -108,7 +107,6 @@ class BiomarkerQC:
                                                                                         SewageFlag.BIOMARKER_RATIO_OUTLIER)]
         biomarker_ratios = last_N_measurements[[Columns.DATE.value, biomarker1 + "/" + biomarker2, biomarker1, biomarker2]]
         # remove empty ratios
-
         biomarker_ratios = biomarker_ratios.dropna()
         return biomarker_ratios
 
@@ -130,7 +128,8 @@ class BiomarkerQC:
                         stat_dict[biomarker_ratio]["total"] += 1
                         last_biomarker_ratios = self.__get_previous_biomarkers_ratios(measurements_df, index, biomarker1, biomarker2)
                         if len(last_biomarker_ratios) < self.min_number_biomarkers_for_outlier_detection:
-                            SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2), SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)
+                            SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2),
+                                                                SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)
                             self.logger.log.debug(
                                 "[Biomarker outlier detection] - [Sample location: '{}'] - [Collection date: '{}'] - "
                                 "Skipping biomarker outlier detection. Found '{}' previous measurements. "
@@ -206,7 +205,6 @@ class BiomarkerQC:
                             SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.get_biomarker_flag(biomarker1), SewageFlag.BIOMARKER_PROBABLE_OUTLIER)
                             SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.get_biomarker_flag(biomarker2), SewageFlag.BIOMARKER_PROBABLE_OUTLIER)
 
-
     def analyze_usable_biomarkers(self, sample_location, measurements_df: pd.DataFrame):
         """
         Sums the number of biomarkers which are not marked as outliers using the outlier columns.
@@ -225,8 +223,8 @@ class BiomarkerQC:
                     if is_probable_outlier:
                         is_probable_outlier_flag = True
                 measurements_df.at[index, CalculatedColumns.NUMBER_OF_USABLE_BIOMARKERS.value] = num_usable_biomarkers
-    #            if num_usable_biomarkers < 2:  # check if less than 2 biomarkers are available
-    #                SewageFlag.add_flag_to_index_column(measurements_df, index, Columns.FLAG.value, SewageFlag.MIN_BIOMARKER_NUMBER_NOT_REACHED)
+                #            if num_usable_biomarkers < 2:  # check if less than 2 biomarkers are available
+                #                SewageFlag.add_flag_to_index_column(measurements_df, index, Columns.FLAG.value, SewageFlag.MIN_BIOMARKER_NUMBER_NOT_REACHED)
                 if is_probable_outlier_flag:  # in case any biomarker was marked as probable outlier set flag for normalization
                     SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.BIOMARKER_PROBABLE_OUTLIER)
         if CalculatedColumns.NUMBER_OF_USABLE_BIOMARKERS.value in measurements_df:
@@ -236,7 +234,6 @@ class BiomarkerQC:
                 stat_output += "\t{} usable biomarkers found in {} samples\n".format(int(num_biomarker), num_samples)
             self.logger.log.info("[Select Biomarkers] - [Sample location: '{}'] - \n"
                                  "{}".format(sample_location, stat_output))
-
 
     def report_last_biomarkers_invalid(self, sample_location, measurements_df: pd.DataFrame):
         last_two_measurements = measurements_df.tail(self.report_number_of_biomarker_outlier)

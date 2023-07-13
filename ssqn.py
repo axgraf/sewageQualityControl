@@ -122,7 +122,7 @@ class SewageQuality:
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples.items()):
-            if idx < 3:
+            if idx < 5:
                 continue   # skip first sewage location for testing  #Todo: remove before production
             self.logger.log.info("\n####################################################\n"
                              "\tSewage location: {} \n"

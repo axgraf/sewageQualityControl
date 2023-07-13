@@ -9,7 +9,7 @@ setup(
     author='Alexander Graf',
     author_email='graf@genzentrum.lmu.de',
     description='SARS-CoV-2 Sewage quality control',
-    scripts=['sewage_quality_control.py'],
+    scripts=['ssqn.py'],
     install_requires=[
         'matplotlib == 3.4.3',
         'numpy == 1.23.5',

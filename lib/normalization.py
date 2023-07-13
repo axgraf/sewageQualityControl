@@ -27,7 +27,7 @@ class SewageNormalization:
                     biomarker_values.append(biomarker_value)
         return biomarker_values
 
-    def __normalize_with_sewage_flow(self, measurements_df: pd.DataFrame, index: int) -> float:
+    def __normalize_with_sewage_flow(self, measurements_df: pd.DataFrame, index: int):
         current_measurement = measurements_df.iloc[index]
         if current_measurement[CalculatedColumns.NUMBER_OF_USABLE_BIOMARKERS.value] >= self.min_number_of_biomarkers_for_normalization:
             if SewageFlag.is_not_flag(current_measurement[CalculatedColumns.FLAG.value], SewageFlag.MISSING_MEAN_SEWAGE_FLOW):
@@ -69,11 +69,11 @@ class SewageNormalization:
                     measurements_df.at[index, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value] = normalized_mean_biomarker
                     self.__detect_basic_reproduction_number_outliers(sample_location, measurements_df, index)
                 else:
-                    ## no normalized mean biomarker could be calculated --> too less usable biomarkers
+                    # no normalized mean biomarker could be calculated --> too less usable biomarkers
                     SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER_SKIPPED)
-                    self.logger.log.warn("[Biomarker normalization] - [Sample location: '{}'] -  "
+                    self.logger.log.warn("[Biomarker normalization] - [Sample location: '{}'] - [Collection date: '{}'] "
                                          "Normalized biomarker could not be calculated. Either too less valid biomarkers or mean sewage flow is missing".
-                                         format(sample_location))
+                                         format(sample_location, current_measurement[Columns.DATE.value]))
         plot_biomarker_normalization(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker_normalization"), self.interactive)
 
 
