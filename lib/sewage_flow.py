@@ -18,13 +18,15 @@ class SewageFlow:
         self.mean_sewage_flow_below_typo_factor = mean_sewage_flow_below_typo_factor
         self.mean_sewage_flow_above_typo_factor = mean_sewage_flow_above_typo_factor
         self.logger = SewageLogger(self.output_folder)
-        self.plots = []
+
+    def add_pdf_plotter(self, pdf_plotter):
+        self.pdf_plotter = pdf_plotter
 
     def sewage_flow_quality_control(self, sample_location, measurements_df: pd.DataFrame):
         dry_flow, is_mean_dry_weather_flow_available = self.__is_mean_flow_above_dry_flow(sample_location, measurements_df)
-        plot = plot_sewage_flow(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "sewage_flow"),
+        plot_sewage_flow(self.pdf_plotter, measurements_df, sample_location,
                          is_mean_dry_weather_flow_available, dry_flow, self.interactive)
-        self.plots.append(plot)
+
 
     def __get_mean_flow_based_on_last_min_values(self, sample_location, measurements_df: pd.DataFrame, current_measurement):
         last_measurements = measurements_df[measurements_df[Columns.DATE.value] < current_measurement[Columns.DATE.value]]

@@ -4,7 +4,7 @@ setup(
     name='sewageQualityControl',
     version='0.1',
     packages=['lib', 'test'],
-    url='',
+    url='https://github.com/axgraf/sewageQualityControl',
     license='',
     author='Alexander Graf',
     author_email='graf@genzentrum.lmu.de',
@@ -20,7 +20,8 @@ setup(
         'scipy == 1.9.3',
         'seaborn == 0.12.2',
         'tqdm == 4.65.0',
-        'openpyxl == 3.0.10'
+        'openpyxl == 3.0.10',
+        'adjustText == 0.7.3.1'
     ]
     #include_package_data=True,
     #package_data={'': ['data/*.dat']},

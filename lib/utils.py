@@ -11,6 +11,7 @@ import tqdm
 import scipy.stats as st
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
+from matplotlib.backends.backend_pdf import PdfPages
 from .sewage import SewageSample
 from .constant import *
 

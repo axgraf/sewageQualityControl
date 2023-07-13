@@ -20,7 +20,9 @@ class BiomarkerQC:
         self.report_number_of_biomarker_outlier = report_number_of_biomarker_outlier
         self.plotting = plotting
         self.logger = SewageLogger(self.output_folder)
-        self.plots = []
+
+    def add_pdf_plotter(self, pdf_plotter):
+        self.pdf_plotter = pdf_plotter
 
     def check_comments(self, sample_location, measurements_df: pd.DataFrame):
         """ Flags a sewage sample if any text is stored in column 'bem_lab' or 'bem_pn' """
@@ -155,9 +157,8 @@ class BiomarkerQC:
                                     current_measurement[biomarker_ratio]))
         progress_bar.close()
         if self.plotting:
-            plot = plot_biomarker_outlier_summary(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker"),
+            plot_biomarker_outlier_summary(self.pdf_plotter, measurements_df, sample_location,
                                            self.biomarker_outlier_statistics, self.interactive)
-            self.plots.append(plot)
         self.logger.log.info("[Biomarker outlier detection] - [Sample location: '{}'] - \n"
                              "Biomarkers ratios:\n{}".format(sample_location,
                                                              pretty_print_biomarker_statistic(stat_dict)))

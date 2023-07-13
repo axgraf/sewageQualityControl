@@ -1,10 +1,9 @@
 # Created by alex at 28.06.23
-import os
 import itertools
 import dateutil
 import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
+from adjustText import adjust_text
 from .constant import *
 
 
@@ -13,20 +12,14 @@ sns.set_context("talk")
 
 
 def get_label_colors():
-    colors = {'not tested': 'dimgrey',
-              'inlier': 'royalblue',
-              'outlier': 'orangered'
+    colors = {'not tested': '#505050',
+              'inlier': '#1f77b4',
+              'outlier': '#d62728'
               }
     return colors
 
 
-def create_output_folder(output_folder):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-
-def plot_biomarker_outlier_summary(measurements_df, sample_location, output_folder, outlier_detection_methods, interactive=False):
-    create_output_folder(output_folder)
+def plot_biomarker_outlier_summary(pdf_plotter, measurements_df, sample_location, outlier_detection_methods, interactive=False):
     plot_frame = pd.DataFrame()
     for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
         biomarker_ratio = biomarker1 + "/" + biomarker2
@@ -44,7 +37,7 @@ def plot_biomarker_outlier_summary(measurements_df, sample_location, output_fold
             'not tested',
             np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER)), 'outlier', 'inlier'))
 
-        g = sns.FacetGrid(plot_frame, col="biomarker_ratio", col_wrap=1, margin_titles=True, height=2.5, aspect=6, sharey=False, legend_out=True)
+        g = sns.FacetGrid(plot_frame, col="biomarker_ratio", col_wrap=1, margin_titles=True, height=5, aspect=5, sharey=False, legend_out=True)
         min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-2)
         max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=2)
         g.set(xlim=(min_date, max_date))
@@ -55,17 +48,13 @@ def plot_biomarker_outlier_summary(measurements_df, sample_location, output_fold
         g.fig.suptitle("Biomarker ratios for '{}' -  Outlier detection methods: {}".format(sample_location, outlier_detection_methods))
         if interactive:
             plt.show()
-        g.savefig(os.path.join(output_folder, "Biomarker_qc_{}.png".format(sample_location)), dpi=300)
+        pdf_plotter.savefig()
         plt.cla()
         plt.close()
-        return g.fig
 
 
-def plot_surrogatvirus (measurements_df, sample_location, output_folder, outlier_detection_methods, interactive=False):
-    create_output_folder(output_folder)
-
+def plot_surrogatvirus (pdf_plotter, measurements_df, sample_location, outlier_detection_methods, interactive=False):
     plot_frame = pd.DataFrame()
-
     for sVirus in Columns.get_surrogatevirus_columns():
         dat = pd.DataFrame()
         dat['date'] = measurements_df[Columns.DATE.value]
@@ -79,7 +68,7 @@ def plot_surrogatvirus (measurements_df, sample_location, output_folder, outlier
                 'outlier', 'inlier'))
         plot_frame = pd.concat([plot_frame, dat])
 
-    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=3.5, aspect=6, sharey=False, legend_out=True)
+    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=5, sharey=False, legend_out=True)
     min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-2)
     max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=2)
     g.set(xlim=(min_date, max_date))
@@ -90,15 +79,12 @@ def plot_surrogatvirus (measurements_df, sample_location, output_folder, outlier
     g.fig.suptitle("Surrogatvirus quality control for '{}' -  Outlier detection methods: {}".format(sample_location, outlier_detection_methods))
     if interactive:
         plt.show()
-    g.savefig(os.path.join(output_folder, "Surrogatvirus_quality_control_{}.png".format(sample_location)), dpi=300)
+    pdf_plotter.savefig()
     plt.cla()
     plt.close()
-    return g.fig
 
 
-def plot_water_quality(measurements_df, sample_location, output_folder, outlier_detection_methods, interactive=False):
-    create_output_folder(output_folder)
-
+def plot_water_quality(pdf_plotter, measurements_df, sample_location,  outlier_detection_methods, interactive=False):
     plot_frame = pd.DataFrame()
     for qual_type, outlier_flag, not_enough_flag in zip([Columns.AMMONIUM.value, Columns.CONDUCTIVITY.value],
                                                         [SewageFlag.AMMONIUM_OUTLIER.value, SewageFlag.CONDUCTIVITY_OUTLIER.value],
@@ -112,7 +98,7 @@ def plot_water_quality(measurements_df, sample_location, output_folder, outlier_
                                      np.where((measurements_df[CalculatedColumns.FLAG.value] & outlier_flag > 0), 'outlier', 'inlier'))
         plot_frame = pd.concat([plot_frame, dat])
 
-    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=3.5, aspect=6, sharey=False, legend_out=True)
+    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=5, sharey=False, legend_out=True)
     min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-2)
     max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=2)
     g.set(xlim=(min_date, max_date))
@@ -123,14 +109,12 @@ def plot_water_quality(measurements_df, sample_location, output_folder, outlier_
     g.fig.suptitle("Water quality control for '{}' -  Outlier detection methods: {}".format(sample_location, outlier_detection_methods))
     if interactive:
         plt.show()
-    g.savefig(os.path.join(output_folder, "Water_quality_control_{}.png".format(sample_location)), dpi=300)
+    pdf_plotter.savefig()
     plt.cla()
     plt.close()
-    return g.fig
 
 
-def plot_sewage_flow(measurements_df, sample_location, output_folder, is_mean_dry_weather_flow_available, dry_weather_flow, interactive=False):
-    create_output_folder(output_folder)
+def plot_sewage_flow(pdf_plotter, measurements_df, sample_location, is_mean_dry_weather_flow_available, dry_weather_flow, interactive=False):
     plot_frame = pd.DataFrame()
     plot_frame['date'] = measurements_df[Columns.DATE.value]
     plot_frame['value'] = measurements_df[Columns.MEAN_SEWAGE_FLOW.value]
@@ -139,7 +123,7 @@ def plot_sewage_flow(measurements_df, sample_location, output_folder, is_mean_dr
         (SewageFlag.is_flag_set_for_series(measurements_df[CalculatedColumns.FLAG.value], SewageFlag.SEWAGE_FLOW_PROBABLE_TYPO)),
         'outlier', np.where((SewageFlag.is_flag_set_for_series(measurements_df[CalculatedColumns.FLAG.value], SewageFlag.SEWAGE_FLOW_NOT_ENOUGH_PREVIOUS_VALUES)),
         'not tested', 'inlier'))
-    plt.figure(figsize=(20, 8))
+    plt.figure(figsize=(27, 8))
     g = sns.scatterplot(data=plot_frame, x="date", y="value", hue="outlier", palette=get_label_colors())
     if dry_weather_flow:
         g.axhline(dry_weather_flow, label="Dry weather flow", linestyle='dashed', c='black')
@@ -153,14 +137,12 @@ def plot_sewage_flow(measurements_df, sample_location, output_folder, is_mean_dr
     plt.tight_layout()
     if interactive:
         plt.show()
-    g.get_figure().savefig(os.path.join(output_folder, "Sewage_flow_quality_control_{}.png".format(sample_location)), dpi=300)
+    pdf_plotter.savefig()
     plt.cla()
     plt.close()
-    return g.figure
 
 
-def plot_biomarker_normalization(measurements_df, sample_location, output_folder, interactive=False):
-    create_output_folder(output_folder)
+def plot_biomarker_normalization(pdf_plotter, measurements_df, sample_location, interactive=False):
     plot_frame = pd.DataFrame()
     for column_type in [CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value, CalculatedColumns.BASE_REPRODUCTION_FACTOR.value]:
         dat = pd.DataFrame()
@@ -172,7 +154,7 @@ def plot_biomarker_normalization(measurements_df, sample_location, output_folder
             'outlier', np.where((SewageFlag.is_flag_set_for_series(measurements_df[CalculatedColumns.FLAG.value], SewageFlag.REPRODUCTION_NUMBER_OUTLIER_SKIPPED)),
                                 'not tested', 'inlier'))
         plot_frame = pd.concat([plot_frame, dat])
-    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=3.5, aspect=6, sharey=False, legend_out=True)
+    g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=5, sharey=False, legend_out=True)
     min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-2)
     max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=2)
     g.set(xlim=(min_date, max_date))
@@ -184,38 +166,37 @@ def plot_biomarker_normalization(measurements_df, sample_location, output_folder
     g.fig.axes[1].set_yscale("symlog", base=2)
     if interactive:
         plt.show()
-    g.savefig(os.path.join(output_folder, "Biomarker_normalization_{}.png".format(sample_location)), dpi=300)
+    pdf_plotter.savefig()
     plt.cla()
     plt.close()
-    return g.fig
 
 
-def plot_general_outliers(measurements_df, sample_location, output_folder, interactive=False):
-    create_output_folder(output_folder)
+def plot_general_outliers(pdf_plotter, measurements_df, sample_location, interactive=False):
     plot_frame = pd.DataFrame()
     plot_frame['date'] = measurements_df[Columns.DATE.value]
     plot_frame['value'] = measurements_df[CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value]
     plot_frame['outlier'] = measurements_df[CalculatedColumns.OUTLIER_REASON.value]
-    plt.figure(figsize=(20, 10))
+    plt.figure(figsize=(27, 10))
     g = sns.scatterplot(data=plot_frame, x="date", y="value", hue="outlier")
+    labels = []
+    for index, current_row in plot_frame.iterrows():
+        if current_row['outlier'] != "":
+            date = current_row['date'].strftime("%Y-%m-%d")
+            t = plt.text(current_row['date'], current_row['value'], date,
+                      size='xx-small', color='black', horizontalalignment='right', rotation=0)
+           # t.set_bbox(dict(facecolor='lightgrey', alpha=0.2, edgecolor='grey'))
+            labels.append(t)
+    adjust_text(labels)
     sns.move_legend(
         g, loc="lower center",
         bbox_to_anchor=(.5, 1.2), ncol=2, title=None, frameon=True
     )
-    plt.title("Outliers - Normalized mean biomarkers for '{}'".format(sample_location), pad=10)
+    plt.title("Outliers - Normalized mean biomarkers for '{}'".format(sample_location))
     plt.subplots_adjust(top=0.72)
     if interactive:
         plt.show()
-    g.get_figure().savefig(os.path.join(output_folder, "Outlier_{}.png".format(sample_location)), dpi=300)
+    pdf_plotter.savefig()
     plt.cla()
     plt.close()
-    return g.figure
 
-
-def plot_all(plots_arr: [], output_file: str):
-    with PdfPages('count.pdf') as pdf_pages:
-        for i, fig in enumerate(plots_arr):
-            figure = plt.figure(fig)
-            pdf_pages.savefig(figure)
-        pdf_pages.close()
 

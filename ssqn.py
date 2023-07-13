@@ -5,6 +5,7 @@ import itertools
 import argparse
 import numpy as np
 from lib.arcgis import *
+from matplotlib.backends.backend_pdf import PdfPages
 from lib.constant import *
 from lib.biomarkerQC import BiomarkerQC
 from lib.surrogatevirusQC import SurrogatevirusQC
@@ -12,7 +13,6 @@ from lib.water_quality import WaterQuality
 from lib.sewage_flow import SewageFlow
 from lib.normalization import SewageNormalization
 import lib.utils as utils
-import lib.plotting as plotting
 import lib.database as db
 
 
@@ -79,7 +79,7 @@ class SewageQuality:
     def __setup(self):
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
-        self.database = db.SewageDatabase(self.output_folder)
+        self.database = db.SewageDatabase()
         self.biomarkerQC = BiomarkerQC(self.output_folder, self.interactive, self.biomarker_outlier_statistics, self.min_biomarker_threshold,
                                   self.min_number_biomarkers_for_outlier_detection,
                                   self.max_number_biomarkers_for_outlier_detection,
@@ -94,6 +94,14 @@ class SewageQuality:
                                      self.biomarker_outlier_statistics, self.output_folder)
         self.sewageNormalization = SewageNormalization(self.interactive, self.max_number_of_flags_for_outlier, self.min_number_of_biomarkers_for_normalization,
                                                        self.base_reproduction_value_factor, self.output_folder)
+
+    def __distribute_pdf_plotter(self, pdf_plotter):
+        self.biomarkerQC.add_pdf_plotter(pdf_plotter)
+        self.water_quality.add_pdf_plotter(pdf_plotter)
+        self.sewage_flow.add_pdf_plotter(pdf_plotter)
+        self.surrogateQC.add_pdf_plotter(pdf_plotter)
+        self.sewageNormalization.add_pdf_plotter(pdf_plotter)
+
 
     def __initalize_flags(self, measurements: pd.DataFrame):
         for biomarker in Columns.get_biomarker_columns():
@@ -127,7 +135,10 @@ class SewageQuality:
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples_dict.items()):
-        #for idx, (sample_location, measurements) in enumerate(self.sewage_samples.items()):
+            if not os.path.exists(os.path.join(self.output_folder, "plots")):
+                os.makedirs(os.path.exists(os.path.join(self.output_folder, "plots")))
+            pdf_pages = PdfPages(os.path.join(self.output_folder, "plots", "{}.plots.pdf".format(sample_location)))
+            self.__distribute_pdf_plotter(pdf_pages)
             self.logger.log.info("\n####################################################\n"
                              "\tSewage location: {} \n"
                              "####################################################".format(sample_location))
@@ -142,7 +153,6 @@ class SewageQuality:
             measurements.sort_values(by=Columns.DATE.value, ascending=True, inplace=True, ignore_index=True)
 
             self.__initalize_flags(measurements)
-
             self.database.needs_recalcuation(sample_location, measurements, self.rerun_all)
 
             self.logger.log.info("{}/{} new measurements to analyse".format(
@@ -187,17 +197,7 @@ class SewageQuality:
             measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[CalculatedColumns.FLAG.value])
             self.database.add_sewage_location2db(sample_location, measurements)
             self.save_dataframe(sample_location, measurements)
-#            all_plots = []
-#            all_plots = all_plots.extend(self.biomarkerQC.plots)
-#            all_plots = all_plots.extend(self.water_quality.plots)
-#            all_plots = all_plots.extend(self.surrogateQC.plots)
-#            all_plots = all_plots.extend(self.sewage_flow.plots)
-#            all_plots = all_plots.extend(self.sewageNormalization.plots)
-#            plotting.plot_all(all_plots, os.path.join(self.output_folder, "all_plots.pdf"))
-
-
-
-
+            pdf_pages.close()
 
 
 if __name__ == '__main__':

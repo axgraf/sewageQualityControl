@@ -1,5 +1,8 @@
 # Created by alex at 10.07.23
 import os
+from platform import system
+from subprocess import call
+from pathlib import Path
 import itertools
 import hashlib
 import pyarrow as pa
@@ -9,24 +12,28 @@ from .utils import *
 
 class SewageDatabase:
 
-    def __init__(self, output_folder):
-        self.output_folder = os.path.join(output_folder, ".db")
-        self.database_file = os.path.join(self.output_folder, ".sewage_db.gzip")
+    def __init__(self):
+        home = str(Path.home())
+        self.output_folder = os.path.join(home, ".sewage_qc_normalization")
         self.measurements_dict = dict()
         self.__create_folder()
 
     def __create_folder(self):
+        operatingSystem = system()
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
+        if operatingSystem == "Windows":
+            call(["attrib", "+H", self.output_folder])  # hide folder in windows
+        elif operatingSystem == "Darwin":
+            os.system(["chflags", "hidden", self.output_folder])  # hide folder in mac os
+
 
     def __load_db_for_location(self, sample_location):
         sample_location = self.__get_sample_location_escaped(sample_location)
-        #database_file = os.path.join(self.output_folder, ".{}_sewage_db.gzip".format(sample_location))
         database_file = os.path.join(self.output_folder, ".{}_sewage_db.parquet".format(sample_location))
         if os.path.exists(database_file):
             table2 = pq.read_table(database_file)
             loaded_df = table2.to_pandas()
-            #loaded_df = pd.read_pickle(database_file, compression="gzip")
             return loaded_df, True
         return None, False
 
@@ -38,11 +45,8 @@ class SewageDatabase:
         sample_location = self.__get_sample_location_escaped(sample_location)
         if CalculatedColumns.NEEDS_PROCESSING.value in measurements_df:
             measurements_df = measurements_df.drop(columns=[CalculatedColumns.NEEDS_PROCESSING.value])
-
         table = pa.Table.from_pandas(measurements_df)
         pq.write_table(table, os.path.join(self.output_folder, ".{}_sewage_db.parquet".format(sample_location)))
-    #    database_file = os.path.join(self.output_folder, ".{}_sewage_db.gzip".format(sample_location))
-    #    df2save.to_pickle(database_file, compression="gzip")
 
     def __get_checksum_for_row(self, row):
         used_columns = [c.value for c in Columns]
