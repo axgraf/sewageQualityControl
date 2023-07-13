@@ -14,6 +14,35 @@ from sklearn.neighbors import LocalOutlierFactor
 from .sewage import SewageSample
 from .constant import *
 
+column_map = {
+    'ENDE': 'collectionDate',
+    'BEM_LAB': 'bem_lab',
+    'BEM_PN': 'bem_pn',
+    'N1_LAB': 'biomarker_N1',
+    'N2_LAB': 'biomarker_N2',
+    'N3_LAB': 'biomarker_N3',
+    'E_LAB': 'biomarker_E',
+    'ORF_LAB': 'biomarker_ORF',
+    'RDRP_LAB': 'biomarker_RDRP',
+    'NH4N': 'nh4n',
+    'LF': "lf",
+    'VOLUMENSTROM': 'mean_sewage_flow',
+    'CRASSPHAGE': 'crassphage',
+    'PMMOV': 'pmmov',
+    'TRO_TAG': 'trockentag'
+}
+
+
+def read_excel_input_files(input_file: str):
+    f = pd.ExcelFile(input_file)
+    location_dict = dict()
+    for sheet in f.sheet_names:
+        df = f.parse(sheet)
+        df.rename(columns=column_map, inplace=True)
+        df = df[list(column_map.values())]
+        location_dict[sheet] = df
+    return location_dict
+
 
 def convert_sample_list2pandas(measurements: List[SewageSample]):
     table = pd.DataFrame.from_records([vars(s) for s in measurements])

@@ -12,12 +12,13 @@ from lib.water_quality import WaterQuality
 from lib.sewage_flow import SewageFlow
 from lib.normalization import SewageNormalization
 import lib.utils as utils
+import lib.plotting as plotting
 import lib.database as db
 
 
 class SewageQuality:
 
-    def __init__(self, output_folder, verbosity, quiet, rerun_all, interactive, biomarker_outlier_statistics,
+    def __init__(self, input_file, output_folder, verbosity, quiet, rerun_all, interactive, biomarker_outlier_statistics,
                  min_biomarker_threshold, min_number_biomarkers_for_outlier_detection,
                  max_number_biomarkers_for_outlier_detection, report_number_of_biomarker_outlier, periode_month_surrogatevirus,
                  surrogatevirus_outlier_statistics, min_number_surrogatevirus_for_outlier_detection,
@@ -27,7 +28,7 @@ class SewageQuality:
                  base_reproduction_value_factor, max_number_of_flags_for_outlier
                   ):
 
-
+        self.input_file = input_file
         self.sewage_samples = None
         self.output_folder = output_folder
         self.verbosity = verbosity
@@ -64,14 +65,16 @@ class SewageQuality:
         self.__setup()
 
     def __load_data(self):
+        self.sewage_samples_dict = utils.read_excel_input_files(self.input_file)
         # arcgis = Arcgis(Config(self.config))
         # self.sewage_samples = arcgis.obtain_sewage_samples()
         # Todo: switch to real data import
-        import pickle
-        with open('data/sewageData.dat', 'rb') as f:
-            self.sewage_samples = pickle.load(f)
-        with open('data/sewagePlantData.dat', 'rb') as f:
-            self.sewage_plants2trockenwetterabfluss = pickle.load(f)
+#        import pickle
+#        with open('data/sewageData.dat', 'rb') as f:
+#            self.sewage_samples = pickle.load(f)
+#        with open('data/sewagePlantData.dat', 'rb') as f:
+#            self.sewage_plants2trockenwetterabfluss = pickle.load(f)
+        self.sewage_plants2trockenwetterabfluss = dict()
 
     def __setup(self):
         if not os.path.exists(self.output_folder):
@@ -123,22 +126,23 @@ class SewageQuality:
         """
         Main method to run the quality checks and normalization
         """
-        for idx, (sample_location, measurements) in enumerate(self.sewage_samples.items()):
-            if idx < 5:
-                continue   # skip first sewage location for testing  #Todo: remove before production
+        for idx, (sample_location, measurements) in enumerate(self.sewage_samples_dict.items()):
+        #for idx, (sample_location, measurements) in enumerate(self.sewage_samples.items()):
             self.logger.log.info("\n####################################################\n"
                              "\tSewage location: {} \n"
                              "####################################################".format(sample_location))
 
-            measurements = utils.convert_sample_list2pandas(measurements)
-            measurements = measurements.drop(columns=["flags"])   # artefact from stored data --> will be removed later
+            #measurements = utils.convert_sample_list2pandas(measurements)
+            #measurements = measurements.drop(columns=["flags"])   # artefact from stored data --> will be removed later
             measurements = measurements.fillna(value=np.nan)
+            measurements[Columns.DATE.value] = measurements[Columns.DATE.value].replace({r'(\d+-\d+-\d+).*': r'\1'}, regex=True)
             measurements[Columns.DATE.value] = pd.to_datetime(measurements[Columns.DATE.value],
                                                               format="%Y-%m-%d").dt.normalize()
             # Sort by collection date. Newest last.
             measurements.sort_values(by=Columns.DATE.value, ascending=True, inplace=True, ignore_index=True)
 
             self.__initalize_flags(measurements)
+
             self.database.needs_recalcuation(sample_location, measurements, self.rerun_all)
 
             self.logger.log.info("{}/{} new measurements to analyse".format(
@@ -183,6 +187,15 @@ class SewageQuality:
             measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[CalculatedColumns.FLAG.value])
             self.database.add_sewage_location2db(sample_location, measurements)
             self.save_dataframe(sample_location, measurements)
+#            all_plots = []
+#            all_plots = all_plots.extend(self.biomarkerQC.plots)
+#            all_plots = all_plots.extend(self.water_quality.plots)
+#            all_plots = all_plots.extend(self.surrogateQC.plots)
+#            all_plots = all_plots.extend(self.sewage_flow.plots)
+#            all_plots = all_plots.extend(self.sewageNormalization.plots)
+#            plotting.plot_all(all_plots, os.path.join(self.output_folder, "all_plots.pdf"))
+
+
 
 
 
@@ -192,11 +205,14 @@ if __name__ == '__main__':
         description="Sewage qPCR quality control",
         usage='use "python3  --help" for more information',
         epilog="author: Dr. Alexander Graf (graf@genzentrum.lmu.de)", formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-i', '--input', metavar="FILE", type=str,
+                        help="Specifiy input excel file with biomarker values",
+                        required=True)
     parser.add_argument('-o', '--output_folder', metavar="FOLDER", default="sewage_qc", type=str,
                         help="Specifiy output folder. (default folder: 'sewage_qc')",
                         required=False)
     parser.add_argument('-r', '--rerun_all', action="store_true", help="Rerun the analysis on all samples.")
-    parser.add_argument('-i', '--interactive', action="store_true", help="Show plots interactively.")
+    parser.add_argument('--interactive', action="store_true", help="Show plots interactively.")
     parser.add_argument('-v', '--verbosity', action="count", help="Increase output verbosity.")
     parser.add_argument('-q', '--quiet', action='store_true', help="Print litte output.")
 
@@ -213,8 +229,8 @@ if __name__ == '__main__':
                               "\tall = use all methods\n") ,
                         choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
                         required=False)
-    biomarker_qc_group.add_argument('--biomarker_min_threshold', metavar="FLOAT", default=4, type=float,
-                        help="Minimal biomarker threshold. (default: 4)",
+    biomarker_qc_group.add_argument('--biomarker_min_threshold', metavar="FLOAT", default=1.5, type=float,
+                        help="Minimal biomarker threshold. (default: 1.5)",
                         required=False)
     biomarker_qc_group.add_argument('--min_number_biomarkers_for_outlier_detection', metavar="INT", default=9, type=int,
                         help="Minimal number of previous measurements required for outlier detection, otherwise this step is skipped. (default: 9)",
@@ -305,7 +321,7 @@ if __name__ == '__main__':
                                    required=False)
 
     args = parser.parse_args()
-    sewageQuality = SewageQuality(args.output_folder, args.verbosity, args.quiet, args.rerun_all, args.interactive, args.biomarker_outlier_statistics, args.biomarker_min_threshold,
+    sewageQuality = SewageQuality(args.input, args.output_folder, args.verbosity, args.quiet, args.rerun_all, args.interactive, args.biomarker_outlier_statistics, args.biomarker_min_threshold,
                                   args.min_number_biomarkers_for_outlier_detection,
                                   args.max_number_biomarkers_for_outlier_detection,
                                   args.report_number_of_biomarker_outliers, args.periode_month_surrogatevirus,

@@ -4,6 +4,7 @@ import itertools
 import dateutil
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from .constant import *
 
 
@@ -57,6 +58,7 @@ def plot_biomarker_outlier_summary(measurements_df, sample_location, output_fold
         g.savefig(os.path.join(output_folder, "Biomarker_qc_{}.png".format(sample_location)), dpi=300)
         plt.cla()
         plt.close()
+        return g.fig
 
 
 def plot_surrogatvirus (measurements_df, sample_location, output_folder, outlier_detection_methods, interactive=False):
@@ -91,6 +93,7 @@ def plot_surrogatvirus (measurements_df, sample_location, output_folder, outlier
     g.savefig(os.path.join(output_folder, "Surrogatvirus_quality_control_{}.png".format(sample_location)), dpi=300)
     plt.cla()
     plt.close()
+    return g.fig
 
 
 def plot_water_quality(measurements_df, sample_location, output_folder, outlier_detection_methods, interactive=False):
@@ -123,6 +126,7 @@ def plot_water_quality(measurements_df, sample_location, output_folder, outlier_
     g.savefig(os.path.join(output_folder, "Water_quality_control_{}.png".format(sample_location)), dpi=300)
     plt.cla()
     plt.close()
+    return g.fig
 
 
 def plot_sewage_flow(measurements_df, sample_location, output_folder, is_mean_dry_weather_flow_available, dry_weather_flow, interactive=False):
@@ -152,6 +156,7 @@ def plot_sewage_flow(measurements_df, sample_location, output_folder, is_mean_dr
     g.get_figure().savefig(os.path.join(output_folder, "Sewage_flow_quality_control_{}.png".format(sample_location)), dpi=300)
     plt.cla()
     plt.close()
+    return g.figure
 
 
 def plot_biomarker_normalization(measurements_df, sample_location, output_folder, interactive=False):
@@ -182,6 +187,7 @@ def plot_biomarker_normalization(measurements_df, sample_location, output_folder
     g.savefig(os.path.join(output_folder, "Biomarker_normalization_{}.png".format(sample_location)), dpi=300)
     plt.cla()
     plt.close()
+    return g.fig
 
 
 def plot_general_outliers(measurements_df, sample_location, output_folder, interactive=False):
@@ -203,3 +209,13 @@ def plot_general_outliers(measurements_df, sample_location, output_folder, inter
     g.get_figure().savefig(os.path.join(output_folder, "Outlier_{}.png".format(sample_location)), dpi=300)
     plt.cla()
     plt.close()
+    return g.figure
+
+
+def plot_all(plots_arr: [], output_file: str):
+    with PdfPages('count.pdf') as pdf_pages:
+        for i, fig in enumerate(plots_arr):
+            figure = plt.figure(fig)
+            pdf_pages.savefig(figure)
+        pdf_pages.close()
+

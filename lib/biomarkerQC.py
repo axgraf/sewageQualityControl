@@ -20,19 +20,20 @@ class BiomarkerQC:
         self.report_number_of_biomarker_outlier = report_number_of_biomarker_outlier
         self.plotting = plotting
         self.logger = SewageLogger(self.output_folder)
+        self.plots = []
 
     def check_comments(self, sample_location, measurements_df: pd.DataFrame):
         """ Flags a sewage sample if any text is stored in column 'bem_lab' or 'bem_pn' """
         flag_value = SewageFlag.COMMENT_NOT_EMPTY.value
-        measurements_df[Columns.COMMENT_ANALYSIS.value] = measurements_df[Columns.COMMENT_ANALYSIS.value].astype(str).str.strip()
-        measurements_df[Columns.COMMENT_OPERATION.value] = measurements_df[Columns.COMMENT_OPERATION.value].astype(str).str.strip()
+        measurements_df[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]] = \
+            measurements_df[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]].apply(
+                lambda x: x.astype(str).str.strip()
+            ).replace('', np.nan)
+        #measurements_df[Columns.COMMENT_ANALYSIS.value] = measurements_df[Columns.COMMENT_ANALYSIS.value].astype(str).str.strip()
+        #measurements_df[Columns.COMMENT_OPERATION.value] = measurements_df[Columns.COMMENT_OPERATION.value].astype(str).str.strip()
         flag_series = \
-            np.where(((measurements_df[Columns.COMMENT_ANALYSIS.value].notnull()) & (
-                    measurements_df[Columns.COMMENT_ANALYSIS.value] != "")) |
-                     ((measurements_df[Columns.COMMENT_OPERATION.value].notnull()) & (
-                             measurements_df[Columns.COMMENT_OPERATION.value] != "")),
-                     flag_value,
-                     0)
+            np.where((measurements_df[Columns.COMMENT_ANALYSIS.value].isna() | measurements_df[Columns.COMMENT_OPERATION.value].isna()),
+                      flag_value, 0)
         SewageFlag.add_series_flag_to_column(measurements_df, CalculatedColumns.FLAG.value, flag_series)
         num_flagged_rows = len(measurements_df[SewageFlag.is_flag_set_for_series(measurements_df[CalculatedColumns.FLAG.value],
                                                                                  SewageFlag.COMMENT_NOT_EMPTY)])
@@ -154,8 +155,9 @@ class BiomarkerQC:
                                     current_measurement[biomarker_ratio]))
         progress_bar.close()
         if self.plotting:
-            plot_biomarker_outlier_summary(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker"),
+            plot = plot_biomarker_outlier_summary(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker"),
                                            self.biomarker_outlier_statistics, self.interactive)
+            self.plots.append(plot)
         self.logger.log.info("[Biomarker outlier detection] - [Sample location: '{}'] - \n"
                              "Biomarkers ratios:\n{}".format(sample_location,
                                                              pretty_print_biomarker_statistic(stat_dict)))

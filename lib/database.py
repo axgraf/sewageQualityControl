@@ -37,9 +37,9 @@ class SewageDatabase:
     def add_sewage_location2db(self, sample_location, measurements_df: pd.DataFrame):
         sample_location = self.__get_sample_location_escaped(sample_location)
         if CalculatedColumns.NEEDS_PROCESSING.value in measurements_df:
-            df2save = measurements_df.drop(columns=[CalculatedColumns.NEEDS_PROCESSING.value])
+            measurements_df = measurements_df.drop(columns=[CalculatedColumns.NEEDS_PROCESSING.value])
 
-        table = pa.Table.from_pandas(df2save)
+        table = pa.Table.from_pandas(measurements_df)
         pq.write_table(table, os.path.join(self.output_folder, ".{}_sewage_db.parquet".format(sample_location)))
     #    database_file = os.path.join(self.output_folder, ".{}_sewage_db.gzip".format(sample_location))
     #    df2save.to_pickle(database_file, compression="gzip")
@@ -84,7 +84,7 @@ class SewageDatabase:
                     if db_row.shape[0] > 0:
                         stored_checksum = self.__get_checksum_for_row(db_row.squeeze())
                         new_checksum = self.__get_checksum_for_row(row)
-                        if stored_checksum == new_checksum and index != 3:
+                        if stored_checksum == new_checksum:
                             needs_recalculation = False
                             indices.append(db_row.index.tolist()[0])
                     new_measurements.at[index, CalculatedColumns.NEEDS_PROCESSING.value] = needs_recalculation

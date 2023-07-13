@@ -1,15 +1,16 @@
-# # Created by alex at 15.06.23
-# import sys
-# import logging
-# from arcgis.gis import GIS
-# from arcgis.features import FeatureLayer
-# from .config import Config
-# from .sewage import SewageSample
-#
-#
-#
-# class Arcgis:
-#
+# Created by alex at 15.06.23
+#import sys
+#import logging
+#from arcgis.gis import GIS
+#from arcgis.features import FeatureLayer
+#from .config import Config
+#from .sewage import SewageSample
+
+
+
+class Arcgis:
+    pass
+
 #     def __init__(self, config: Config):
 #         self.sewage_plants = dict()
 #         self.regions2plants = dict()

@@ -16,6 +16,7 @@ class SewageNormalization:
         self.base_reproduction_value_factor = base_reproduction_value_factor
         self.output_folder = output_folder
         self.logger = SewageLogger(self.output_folder)
+        self.plots = []
 
     def __get_usable_biomarkers(self, current_measurement: pd.Series) -> []:
         biomarker_values = []
@@ -74,7 +75,8 @@ class SewageNormalization:
                     self.logger.log.warn("[Biomarker normalization] - [Sample location: '{}'] - [Collection date: '{}'] "
                                          "Normalized biomarker could not be calculated. Either too less valid biomarkers or mean sewage flow is missing".
                                          format(sample_location, current_measurement[Columns.DATE.value]))
-        plot_biomarker_normalization(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker_normalization"), self.interactive)
+        plot = plot_biomarker_normalization(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "biomarker_normalization"), self.interactive)
+        self.plots.append(plot)
 
 
     def __are_comments_not_empty(self, current_measurement: pd.Series) -> bool:

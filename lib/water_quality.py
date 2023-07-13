@@ -15,11 +15,13 @@ class WaterQuality:
         self.min_number_of_last_measurements_for_water_qc = min_number_of_last_measurements_for_water_qc
         self.water_qc_outlier_statistics = water_qc_outlier_statistics
         self.logger = SewageLogger(self.output_folder)
+        self.plots = []
 
     def check_water_quality(self, sample_location, measurements_df: pd.DataFrame):
         self.__detect_outliers_in_ammonium(sample_location, measurements_df)
         self.__detect_outliers_in_conductivity(sample_location, measurements_df)
-        plot_water_quality(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "water_quality"), self.water_qc_outlier_statistics, self.interactive)
+        plot = plot_water_quality(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "water_quality"), self.water_qc_outlier_statistics, self.interactive)
+        self.plots.append(plot)
 
     def __detect_outliers_in_ammonium(self, sample_location, measurements_df: pd.DataFrame):
         self.logger.log.info(

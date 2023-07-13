@@ -19,8 +19,9 @@ setup(
         'scikit_learn == 1.2.0',
         'scipy == 1.9.3',
         'seaborn == 0.12.2',
-        'tqdm == 4.65.0'
-    ],
-    include_package_data=True,
-    package_data={'': ['data/*.dat']},
+        'tqdm == 4.65.0',
+        'openpyxl == 3.0.10'
+    ]
+    #include_package_data=True,
+    #package_data={'': ['data/*.dat']},
 )

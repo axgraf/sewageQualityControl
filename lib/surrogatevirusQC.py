@@ -14,6 +14,7 @@ class SurrogatevirusQC:
         self.surrogatevirus_outlier_statistics = surrogatevirus_outlier_statistics
         self.output_folder = output_folder
         self.logger = SewageLogger(output_folder)
+        self.plots = []
 
     def __get_start_timeframe(self, current_date: datetime):
         start_timeframe = (current_date - relativedelta(months=self.periode_month_surrogatevirus)).strftime('%Y-%m-%d')
@@ -95,8 +96,9 @@ class SurrogatevirusQC:
                 "[Surrogatevirus outlier detection] - [Sample location: '{}']\n Final outcome: {}".format(
                     sample_location, surrogatevirus_quality_stats))
 
-        plot_surrogatvirus(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "surrogatvirus"),
+        plot = plot_surrogatvirus(measurements_df, sample_location, os.path.join(self.output_folder, "plots", "surrogatvirus"),
                            self.surrogatevirus_outlier_statistics, self.interactive)
+        self.plots.append(plot)
 
         #TODO Datensatz aussortieren, wenn beide Surrogatviren geflagged
 
