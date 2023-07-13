@@ -115,8 +115,8 @@ class SewageQuality:
         result_folder = os.path.join(self.output_folder, "results")
         if not os.path.exists(result_folder):
             os.makedirs(result_folder)
-        output_file = os.path.join(result_folder, "normalized_sewage_{}.csv".format(sample_location))
-        measurements.to_csv(output_file, index=False, sep='\t', header=True)
+        output_file = os.path.join(result_folder, "normalized_sewage_{}.xlsx".format(sample_location))
+        measurements.to_excel(output_file, index=False)
 
 
     def run_quality_control(self):
@@ -204,7 +204,7 @@ if __name__ == '__main__':
     biomarker_qc_group.add_argument('--biomarker_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',
                         help=("Which outlier detection methods should be used? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
                               "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
-                              "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
+                              "E.g. to select 'rf' and 'iqr' use: --biomarker_outlier_statistics rf iqr \n"
                               "\tlof = local outlier factor\n"
                               "\trf = random forest\n"
                               "\tiqr = interquartile range\n"
