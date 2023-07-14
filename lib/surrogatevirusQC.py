@@ -1,42 +1,34 @@
 # Created by alex at 22.06.23
 import math
 from dateutil.relativedelta import relativedelta
-import datetime
 from .utils import *
+from .statistics import *
 from .plotting import *
 
-class SurrogatevirusQC:
 
-    def __init__(self, interactive, periode_month_surrogatevirus, min_number_surrogatevirus_for_outlier_detection, surrogatevirus_outlier_statistics, output_folder):
-        self.interactive = interactive
+class SurrogateVirusQC:
+
+    def __init__(self, sewageStat: SewageStat, periode_month_surrogatevirus, min_number_surrogatevirus_for_outlier_detection, surrogatevirus_outlier_statistics, output_folder):
+        self.sewageStat = sewageStat
         self.periode_month_surrogatevirus = periode_month_surrogatevirus
         self.min_number_surrogatevirus_for_outlier_detection = min_number_surrogatevirus_for_outlier_detection
         self.surrogatevirus_outlier_statistics = surrogatevirus_outlier_statistics
         self.output_folder = output_folder
         self.logger = SewageLogger(output_folder)
 
-    def add_pdf_plotter(self, pdf_plotter):
-        self.pdf_plotter = pdf_plotter
-
     def __get_start_timeframe(self, current_date: datetime):
         start_timeframe = (current_date - relativedelta(months=self.periode_month_surrogatevirus)).strftime('%Y-%m-%d')
         return start_timeframe
 
-    def filter_dry_days_time_frame(self, sample_location: str, measurements_df: pd.DataFrame):
+    def filter_dry_days_time_frame(self, sample_location: str, measurements: pd.DataFrame, index):
         """
          Get rid of rainy days and measurements with empty surrogatevirus fields
          """
+        current_measurement = measurements.iloc[index]
         for sVirus in Columns.get_surrogatevirus_columns():
-            measurements_df[CalculatedColumns.get_surrogate_flag(sVirus)] += np.where((
-                (measurements_df[Columns.TROCKENTAG.value] != "Ja") |
-                measurements_df[sVirus].isnull()),
-                SewageFlag.SURROGATEVIRUS_VALUE_NOT_USABLE.value, 0)
-
-            self.logger.log.info("[Surrogatevirus: {}] - [Sample location: '{}'] - \n"
-                                 "\tNumber of excluded measurements because of rain or no value: {}"
-                                 "\tout of {} samples.".
-                                 format(sVirus, sample_location, len(measurements_df[measurements_df[CalculatedColumns.get_surrogate_flag(sVirus)] != 0]),
-                                        measurements_df.shape[0]))
+            if current_measurement[Columns.TROCKENTAG.value].lower().strip() != "ja" or math.isnan(current_measurement[sVirus]):
+                SewageFlag.add_flag_to_index_column(measurements, index, CalculatedColumns.get_surrogate_flag(sVirus),
+                                                    SewageFlag.SURROGATEVIRUS_VALUE_NOT_USABLE)
 
     def __get_previous_surrogatevirus_values (self, measurements_df: pd.DataFrame, current_measurement, sVirus):
         """
@@ -57,49 +49,26 @@ class SurrogatevirusQC:
 
         return sVirus_values_to_take
 
-    def is_surrogatevirus_outlier(self, sample_location: str, measurements_df: pd.DataFrame):
+    def is_surrogatevirus_outlier(self, sample_location: str, measurements: pd.DataFrame, index):
         """
             Detect surrogatevirus outlier, for each measurement and surogatevirus
         """
-        self.logger.log.info(
-            "[Surrogatevirus outlier detection] - [Sample location: '{}'] - Using following outlier detection methods: {}".format(
-                sample_location, self.surrogatevirus_outlier_statistics))
-
-        surrogatevirus_quality_stats = dict()
-        out_list = ['surrogatevirus_total']
+        current_measurement = measurements.iloc[index]
         for sVirus in Columns.get_surrogatevirus_columns():
-            out_list += [sVirus + '_skipped', sVirus + '_passed', sVirus + '_failed']
-        for k in out_list:
-            surrogatevirus_quality_stats.setdefault(k, 0)
-
-        progress_bar = self.logger.get_progress_bar(CalculatedColumns.get_num_of_unprocessed(measurements_df), "Analyzing surrogatevirus outliers")
-        for index, current_measurement in measurements_df.iterrows():
-            if CalculatedColumns.needs_processing(current_measurement):
-                progress_bar.update(1)
-                surrogatevirus_quality_stats['surrogatevirus_total'] += 1
-                for sVirus in Columns.get_surrogatevirus_columns():
-                    if SewageFlag.is_not_flag(current_measurement[CalculatedColumns.get_surrogate_flag(sVirus)], SewageFlag.SURROGATEVIRUS_VALUE_NOT_USABLE):
-                        sVirus_values_to_take = self.__get_previous_surrogatevirus_values(measurements_df, current_measurement, sVirus)
-                        if len(sVirus_values_to_take) > self.min_number_surrogatevirus_for_outlier_detection:
-                            is_outlier = detect_outliers(self.surrogatevirus_outlier_statistics, sVirus_values_to_take[sVirus],
+            if SewageFlag.is_not_flag(current_measurement[CalculatedColumns.get_surrogate_flag(sVirus)], SewageFlag.SURROGATEVIRUS_VALUE_NOT_USABLE):
+                sVirus_values_to_take = self.__get_previous_surrogatevirus_values(measurements, current_measurement, sVirus)
+                if len(sVirus_values_to_take) > self.min_number_surrogatevirus_for_outlier_detection:
+                    is_outlier = detect_outliers(self.surrogatevirus_outlier_statistics, sVirus_values_to_take[sVirus],
                                                  current_measurement[sVirus])
-                            if is_outlier:
-                                measurements_df.at[index, CalculatedColumns.get_surrogate_outlier_flag(sVirus)] += SewageFlag.SURROGATEVIRUS_OUTLIER.value
-                                measurements_df.at[index, CalculatedColumns.FLAG.value] += SewageFlag.SURROGATEVIRUS_OUTLIER.value
-                                surrogatevirus_quality_stats[sVirus + '_failed'] += 1
-                            else:
-                                surrogatevirus_quality_stats[sVirus + '_passed'] += 1
-                        else:
-                            surrogatevirus_quality_stats[sVirus + '_skipped'] += 1
+                    if is_outlier:
+                        measurements.at[index, CalculatedColumns.get_surrogate_outlier_flag(sVirus)] += SewageFlag.SURROGATEVIRUS_OUTLIER.value
+                        measurements.at[index, CalculatedColumns.FLAG.value] += SewageFlag.SURROGATEVIRUS_OUTLIER.value
+                        self.sewageStat.add_surrogate_virus_outlier(sVirus, 'outlier')
                     else:
-                        surrogatevirus_quality_stats[sVirus + '_skipped'] += 1
-        progress_bar.close()
-        self.logger.log.info(
-                "[Surrogatevirus outlier detection] - [Sample location: '{}']\n Final outcome: {}".format(
-                    sample_location, surrogatevirus_quality_stats))
+                        self.sewageStat.add_surrogate_virus_outlier(sVirus, 'passed')
 
-        plot_surrogatvirus(self.pdf_plotter, measurements_df, sample_location,
-                           self.surrogatevirus_outlier_statistics, self.interactive)
+                else:
+                    self.sewageStat.add_surrogate_virus_outlier(sVirus, 'skipped')
 
         #TODO Datensatz aussortieren, wenn beide Surrogatviren geflagged
 

@@ -11,12 +11,11 @@ import tqdm
 import scipy.stats as st
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
-from matplotlib.backends.backend_pdf import PdfPages
 from .sewage import SewageSample
 from .constant import *
 
 column_map = {
-    'ENDE': 'collectionDate',
+    'ANFANG': 'collectionDate',
     'BEM_LAB': 'bem_lab',
     'BEM_PN': 'bem_pn',
     'N1_LAB': 'biomarker_N1',
@@ -253,6 +252,10 @@ class SewageLogger:
             cls._instance = object.__new__(cls)
         return cls._instance
 
+    def logInfo(self, message):
+
+            self.log.info(message)
+
     def __setup_logger(self):
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
@@ -274,4 +277,4 @@ class SewageLogger:
         return logger
 
     def get_progress_bar(self, total, text):
-        return tqdm.tqdm(total=total, unit=' samples', colour="blue", ncols=150, desc=text, file=sys.stdout)
+        return tqdm.tqdm(total=total, unit=' samples', colour="blue", ncols=100, desc=text, file=sys.stdout)

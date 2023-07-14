@@ -2,24 +2,21 @@
 import pandas as pd
 import math
 from .utils import *
+from .statistics import *
 from .plotting import *
 
 
 class SewageNormalization:
-    def __init__(self, interactive, max_number_of_flags_for_outlier: int,
+    def __init__(self, sewageStat: SewageStat, max_number_of_flags_for_outlier: int,
                  min_number_of_biomarkers_for_normalization: int,
                  base_reproduction_value_factor: float,
                  output_folder: str):
-        self.interactive = interactive
+        self.sewageStat = sewageStat
         self.max_number_of_flags_for_outlier = max_number_of_flags_for_outlier
         self.min_number_of_biomarkers_for_normalization = min_number_of_biomarkers_for_normalization
         self.base_reproduction_value_factor = base_reproduction_value_factor
         self.output_folder = output_folder
         self.logger = SewageLogger(self.output_folder)
-
-    def add_pdf_plotter(self, pdf_plotter):
-        self.pdf_plotter = pdf_plotter
-
 
     def __get_usable_biomarkers(self, current_measurement: pd.Series) -> []:
         biomarker_values = []
@@ -31,7 +28,7 @@ class SewageNormalization:
                     biomarker_values.append(biomarker_value)
         return biomarker_values
 
-    def __normalize_with_sewage_flow(self, measurements_df: pd.DataFrame, index: int):
+    def __normalize_with_sewage_flow(self, measurements_df: pd.DataFrame, index):
         current_measurement = measurements_df.iloc[index]
         if current_measurement[CalculatedColumns.NUMBER_OF_USABLE_BIOMARKERS.value] >= self.min_number_of_biomarkers_for_normalization:
             if SewageFlag.is_not_flag(current_measurement[CalculatedColumns.FLAG.value], SewageFlag.MISSING_MEAN_SEWAGE_FLOW):
@@ -44,7 +41,7 @@ class SewageNormalization:
             SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.NOT_ENOUGH_BIOMARKERS_FOR_NORMALIZATION)
         return None
 
-    def __detect_basic_reproduction_number_outliers(self, sample_location: str, measurements_df: pd.DataFrame, index: int) -> None:
+    def __detect_basic_reproduction_number_outliers(self, sample_location: str, measurements_df: pd.DataFrame, index) -> None:
         current_measurement = measurements_df.iloc[index]
         num_previous_days = 7
         last_values_one_week = get_last_N_month_and_days(measurements_df, current_measurement, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value, num_month=0, num_days=num_previous_days,
@@ -57,28 +54,25 @@ class SewageNormalization:
                 measurements_df.at[index, CalculatedColumns.BASE_REPRODUCTION_FACTOR.value] = reproduction_factor
                 if reproduction_factor > self.base_reproduction_value_factor or reproduction_factor < (1 / self.base_reproduction_value_factor):
                     SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER)
+                    self.sewageStat.add_reproduction_factor_outlier('failed')
             else:
                 SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER_SKIPPED)
+                self.sewageStat.add_reproduction_factor_outlier('skipped')
         else:
             SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER_SKIPPED)
-            self.logger.log.debug("[Biomarker reproduction number outlier] - [Sample location: '{}'] - [Collection date: '{}'] - "
-                                  "No previous mean normalized biomarker values found within the last {} days. "
-                                  "Skipping reproduction outlier analysis... ".format(sample_location, current_measurement[Columns.DATE.value], num_previous_days))
+            self.sewageStat.add_reproduction_factor_outlier('skipped')
 
-    def normalize_biomarker_values(self, sample_location: str, measurements_df: pd.DataFrame) -> None:
-        for index, current_measurement in measurements_df.iterrows():
-            if CalculatedColumns.needs_processing(current_measurement):
-                normalized_mean_biomarker = self.__normalize_with_sewage_flow(measurements_df, index)
-                if normalized_mean_biomarker:
-                    measurements_df.at[index, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value] = normalized_mean_biomarker
-                    self.__detect_basic_reproduction_number_outliers(sample_location, measurements_df, index)
-                else:
-                    # no normalized mean biomarker could be calculated --> too less usable biomarkers
-                    SewageFlag.add_flag_to_index_column(measurements_df, index, CalculatedColumns.FLAG.value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER_SKIPPED)
-                    self.logger.log.warn("[Biomarker normalization] - [Sample location: '{}'] - [Collection date: '{}'] "
-                                         "Normalized biomarker could not be calculated. Either too less valid biomarkers or mean sewage flow is missing".
-                                         format(sample_location, current_measurement[Columns.DATE.value]))
-        plot_biomarker_normalization(self.pdf_plotter, measurements_df, sample_location, self.interactive)
+    def normalize_biomarker_values(self, sample_location: str, measurements: pd.DataFrame, index) -> None:
+        current_measurement = measurements.iloc[index]
+        normalized_mean_biomarker = self.__normalize_with_sewage_flow(measurements, index)
+        if normalized_mean_biomarker:
+            measurements.at[index, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value] = normalized_mean_biomarker
+            self.__detect_basic_reproduction_number_outliers(sample_location, measurements, index)
+        else:
+            # no normalized mean biomarker could be calculated --> too less usable biomarkers
+            self.sewageStat.add_reproduction_factor_outlier('failed')
+            SewageFlag.add_flag_to_index_column(measurements, index, CalculatedColumns.FLAG.value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER_SKIPPED)
+
 
     def __are_comments_not_empty(self, current_measurement: pd.Series) -> bool:
         flag_value = current_measurement[CalculatedColumns.FLAG.value]
@@ -126,56 +120,51 @@ class SewageNormalization:
         flag_value = current_measurement[CalculatedColumns.FLAG.value]
         return SewageFlag.is_flag(flag_value, SewageFlag.REPRODUCTION_NUMBER_OUTLIER)
 
-    def decide_biomarker_usable_based_on_flags(self, sample_location: str, measurements_df: pd.DataFrame):
-        usable = 0
-        outlier_stat_dict = dict()
-        outlier_stat_dict.setdefault('Min num biomarkers not reached', 0)
-        outlier_stat_dict.setdefault('Surrogate virus outlier', 0)
-        outlier_stat_dict.setdefault('Sewage flow outlier', 0)
-        outlier_stat_dict.setdefault('Reproduction factor outlier', 0)
-        outlier_stat_dict.setdefault('Too many flags', 0)
 
-        for index, current_measurement in measurements_df.iterrows():
-            if CalculatedColumns.needs_processing(current_measurement):
-                num_flags = 0
-                is_outlier = False
-                if self.__are_comments_not_empty(current_measurement):
-                    num_flags += 1
-                #  less than 2 biomarker values available
-                if self.__are_too_less_biomarkers(current_measurement):
-                    is_outlier = True
-                    outlier_stat_dict['Min num biomarkers not reached'] += 1
-                    CalculatedColumns.add_outlier_reason(measurements_df, index, 'Min num biomarkers not reached')
-                num_flags += self.__num_biomarkers_flagged(current_measurement)
-                # surrogate_virus_flags
-                are_both_surrogate_virus_outliers, num_surrogate_virus_flags = self.__are_both_surrogate_virus_outliers(current_measurement)
-                num_flags += num_surrogate_virus_flags
-                if are_both_surrogate_virus_outliers:
-                    outlier_stat_dict['Surrogate virus outlier'] += 1
-                    CalculatedColumns.add_outlier_reason(measurements_df, index, 'Surrogate virus outlier')
-                    is_outlier = True
-                if self.__is_sewage_flow_outlier(current_measurement):
-                    outlier_stat_dict['Sewage flow outlier'] += 1
-                    CalculatedColumns.add_outlier_reason(measurements_df, index, 'Sewage flow outlier')
-                    is_outlier = True
-                num_flags += self.__get_num_water_quality_flags(current_measurement)
-                if self.__is_reproduction_factor_outlier(current_measurement):
-                    outlier_stat_dict['Reproduction factor outlier'] += 1
-                    CalculatedColumns.add_outlier_reason(measurements_df, index, 'Reproduction factor outlier')
-                    is_outlier = True
-                if num_flags > self.max_number_of_flags_for_outlier:
-                    CalculatedColumns.add_outlier_reason(measurements_df, index, 'Too many flags')
-                    outlier_stat_dict['Too many flags'] += 1
-                    is_outlier = True
-                if is_outlier:
-                    measurements_df.at[index, CalculatedColumns.USABLE.value] = False
-                else:
-                    usable += 1
-                    measurements_df.at[index, CalculatedColumns.USABLE.value] = True
-        num2process = CalculatedColumns.get_num_of_unprocessed(measurements_df)
-        self.logger.log.info("[Determine outliers based on all flags] - [Sample location: '{}'] -  "
-                             "Detected outliers '{}/{}' from all quality control steps.\nOutlier reasons:\n{}".
-                             format(sample_location, (num2process - usable), num2process, outlier_stat_dict))
-        plot_general_outliers(self.pdf_plotter, measurements_df, sample_location, self.interactive)
+    def __clear_biomarker_ratio_outliers(self, measurements: pd.DataFrame, index):
+        for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
+            SewageFlag.remove_flag_from_index_column(measurements, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2), SewageFlag.BIOMARKER_RATIO_OUTLIER)
+
+
+    def decide_biomarker_usable_based_on_flags(self, sample_location: str, measurements: pd.DataFrame, index):
+        current_measurement = measurements.iloc[index]
+        usable = 0
+        num_flags = 0
+        is_outlier = False
+        if self.__are_comments_not_empty(current_measurement):
+            num_flags += 1
+        #  less than 2 biomarker values available
+        if self.__are_too_less_biomarkers(current_measurement):
+            is_outlier = True
+            self.sewageStat.add_outliers('Min num biomarkers not reached')
+            CalculatedColumns.add_outlier_reason(measurements, index, 'Min num biomarkers not reached')
+        num_flags += self.__num_biomarkers_flagged(current_measurement)
+        # surrogate_virus_flags
+        are_both_surrogate_virus_outliers, num_surrogate_virus_flags = self.__are_both_surrogate_virus_outliers(current_measurement)
+        num_flags += num_surrogate_virus_flags
+        if are_both_surrogate_virus_outliers:
+            self.sewageStat.add_outliers('Surrogate virus outlier')
+            CalculatedColumns.add_outlier_reason(measurements, index, 'Surrogate virus outlier')
+            is_outlier = True
+        if self.__is_sewage_flow_outlier(current_measurement):
+            self.sewageStat.add_outliers('Sewage flow outlier')
+            CalculatedColumns.add_outlier_reason(measurements, index, 'Sewage flow outlier')
+            is_outlier = True
+        num_flags += self.__get_num_water_quality_flags(current_measurement)
+        if self.__is_reproduction_factor_outlier(current_measurement):
+            self.sewageStat.add_outliers('Reproduction factor outlier')
+            CalculatedColumns.add_outlier_reason(measurements, index, 'Reproduction factor outlier')
+            is_outlier = True
+        if num_flags > self.max_number_of_flags_for_outlier:
+            CalculatedColumns.add_outlier_reason(measurements, index, 'Too many flags')
+            self.sewageStat.add_outliers('Too many flags')
+            is_outlier = True
+        if is_outlier:
+            measurements.at[index, CalculatedColumns.USABLE.value] = False
+        else:
+            usable += 1
+            measurements.at[index, CalculatedColumns.USABLE.value] = True
+            # remove biomarker ratio outliers in case the sample is valid
+            self.__clear_biomarker_ratio_outliers(measurements, index)
 
 

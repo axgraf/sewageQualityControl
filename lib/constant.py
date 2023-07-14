@@ -45,6 +45,17 @@ class SewageFlag(Flag):
 
     def __eq__(self, other):
         return self.name == other.name
+
+    @staticmethod
+    def remove_flag_from_index_column(df, index, flag_column, sewage_flag) -> None:
+        if isinstance(sewage_flag, SewageFlag):
+            current_flag = df.iloc[index][flag_column]
+            has_flag = SewageFlag.is_flag(current_flag, sewage_flag)
+            if has_flag:
+                df.at[index, flag_column] -= sewage_flag.value
+        else:
+            raise ValueError("The given flag is not of type 'SewageFlag'")
+
     @staticmethod
     def add_flag_to_index_column(df, index, flag_column, sewage_flag) -> None:
         if isinstance(sewage_flag, SewageFlag):

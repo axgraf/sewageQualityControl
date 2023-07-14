@@ -4,21 +4,25 @@ import os
 import itertools
 import argparse
 import numpy as np
+import pandas as pd
+
 from lib.arcgis import *
 from matplotlib.backends.backend_pdf import PdfPages
 from lib.constant import *
 from lib.biomarkerQC import BiomarkerQC
-from lib.surrogatevirusQC import SurrogatevirusQC
+from lib.surrogatevirusQC import SurrogateVirusQC
 from lib.water_quality import WaterQuality
 from lib.sewage_flow import SewageFlow
 from lib.normalization import SewageNormalization
 import lib.utils as utils
+import lib.statistics as sewageStat
+import lib.plotting as plotting
 import lib.database as db
 
 
 class SewageQuality:
 
-    def __init__(self, input_file, output_folder, verbosity, quiet, rerun_all, interactive, biomarker_outlier_statistics,
+    def __init__(self, input_file, output_folder, verbosity, quiet, rerun_all, biomarker_outlier_statistics,
                  min_biomarker_threshold, min_number_biomarkers_for_outlier_detection,
                  max_number_biomarkers_for_outlier_detection, report_number_of_biomarker_outlier, periode_month_surrogatevirus,
                  surrogatevirus_outlier_statistics, min_number_surrogatevirus_for_outlier_detection,
@@ -34,7 +38,6 @@ class SewageQuality:
         self.verbosity = verbosity
         self.quiet = quiet
         self.rerun_all = rerun_all
-        self.interactive = interactive
         # biomarker qc
         self.biomarker_outlier_statistics = biomarker_outlier_statistics
         self.min_biomarker_threshold = min_biomarker_threshold
@@ -59,10 +62,10 @@ class SewageQuality:
         self.min_number_of_biomarkers_for_normalization = min_number_of_biomarkers_for_normalization
         self.base_reproduction_value_factor = base_reproduction_value_factor
         self.max_number_of_flags_for_outlier = max_number_of_flags_for_outlier
-
+        self.sewageStat = sewageStat.SewageStat()
         self.logger = utils.SewageLogger(self.output_folder, verbosity=verbosity, quiet=quiet)
         self.__load_data()
-        self.__setup()
+        self.__initialize()
 
     def __load_data(self):
         self.sewage_samples_dict = utils.read_excel_input_files(self.input_file)
@@ -76,37 +79,32 @@ class SewageQuality:
 #            self.sewage_plants2trockenwetterabfluss = pickle.load(f)
         self.sewage_plants2trockenwetterabfluss = dict()
 
-    def __setup(self):
+    def __initialize(self):
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
         self.database = db.SewageDatabase()
-        self.biomarkerQC = BiomarkerQC(self.output_folder, self.interactive, self.biomarker_outlier_statistics, self.min_biomarker_threshold,
+        self.biomarkerQC = BiomarkerQC(self.output_folder, self.sewageStat, self.biomarker_outlier_statistics, self.min_biomarker_threshold,
                                   self.min_number_biomarkers_for_outlier_detection,
                                   self.max_number_biomarkers_for_outlier_detection,
                                   self.report_number_of_biomarker_outlier)
-        self.water_quality = WaterQuality(self.output_folder, self.interactive, self.water_quality_number_of_last_month,
+        self.water_quality = WaterQuality(self.output_folder, self.sewageStat, self.water_quality_number_of_last_month,
                                           self.min_number_of_last_measurements_for_water_qc, self.water_qc_outlier_statistics)
-        self.sewage_flow = SewageFlow(self.output_folder, self.interactive, self.sewage_plants2trockenwetterabfluss,
+        self.sewage_flow = SewageFlow(self.output_folder, self.sewageStat, self.sewage_plants2trockenwetterabfluss,
                                       self.fraction_last_samples_for_dry_flow, self.min_num_samples_for_mean_dry_flow,
                                       self.heavy_precipitation_factor, self.mean_sewage_flow_below_typo_factor, self.mean_sewage_flow_above_typo_factor)
-        self.surrogateQC = SurrogatevirusQC(self.interactive, self.periode_month_surrogatevirus,
+        self.surrogateQC = SurrogateVirusQC(self.sewageStat, self.periode_month_surrogatevirus,
                                      self.min_number_surrogatevirus_for_outlier_detection,
                                      self.biomarker_outlier_statistics, self.output_folder)
-        self.sewageNormalization = SewageNormalization(self.interactive, self.max_number_of_flags_for_outlier, self.min_number_of_biomarkers_for_normalization,
+        self.sewageNormalization = SewageNormalization(self.sewageStat, self.max_number_of_flags_for_outlier, self.min_number_of_biomarkers_for_normalization,
                                                        self.base_reproduction_value_factor, self.output_folder)
 
-    def __distribute_pdf_plotter(self, pdf_plotter):
-        self.biomarkerQC.add_pdf_plotter(pdf_plotter)
-        self.water_quality.add_pdf_plotter(pdf_plotter)
-        self.sewage_flow.add_pdf_plotter(pdf_plotter)
-        self.surrogateQC.add_pdf_plotter(pdf_plotter)
-        self.sewageNormalization.add_pdf_plotter(pdf_plotter)
 
 
-    def __initalize_flags(self, measurements: pd.DataFrame):
+    def __initalize_columns(self, measurements: pd.DataFrame):
         for biomarker in Columns.get_biomarker_columns():
             measurements[CalculatedColumns.get_biomarker_flag(biomarker)] = 0
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
+            measurements[biomarker1 + "/" + biomarker2] = np.NAN
             measurements[CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)] = 0
         for sVirus in Columns.get_surrogatevirus_columns():
             measurements[CalculatedColumns.get_surrogate_flag(sVirus)] = 0
@@ -129,75 +127,98 @@ class SewageQuality:
         output_file = os.path.join(result_folder, "normalized_sewage_{}.xlsx".format(sample_location))
         measurements.to_excel(output_file, index=False)
 
+    def __setup(self, sample_location, measurements: pd.DataFrame):
+        measurements = measurements.fillna(value=np.nan)
+        measurements[Columns.DATE.value] = measurements[Columns.DATE.value].replace({r'(\d+-\d+-\d+).*': r'\1'}, regex=True)
+        measurements[Columns.DATE.value] = pd.to_datetime(measurements[Columns.DATE.value],
+                                                          format="%Y-%m-%d").dt.normalize()
+        # setup comment fields
+        measurements[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]] = \
+            measurements[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]].apply(
+                lambda x: x.astype(str).str.strip()
+            )
+        measurements[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]] = \
+            measurements[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]].replace('nan', '')
+        measurements[[Columns.TROCKENTAG.value]] = measurements[[Columns.TROCKENTAG.value]].astype(str)
+        # measurements = measurements.drop(columns=["flags"])   # artefact from stored data --> will be removed later
+        # measurements = utils.convert_sample_list2pandas(measurements)
+        # Sort by collection date. Newest last.
+        measurements.sort_values(by=Columns.DATE.value, ascending=True, inplace=True, ignore_index=True)
+        self.__initalize_columns(measurements)
+        self.database.needs_recalcuation(sample_location, measurements, self.rerun_all)
+        return measurements
+
+    def __plot_results(self, measurements: pd.DataFrame, sample_location):
+        if not os.path.exists(os.path.join(self.output_folder, "plots")):
+            os.makedirs(os.path.exists(os.path.join(self.output_folder, "plots")))
+        pdf_pages = PdfPages(os.path.join(self.output_folder, "plots", "{}.plots.pdf".format(sample_location)))
+        plotting.plot_biomarker_outlier_summary(pdf_pages, measurements, sample_location, self.biomarker_outlier_statistics)
+        plotting.plot_surrogatvirus(pdf_pages, measurements, sample_location, self.surrogatevirus_outlier_statistics)
+        plotting.plot_sewage_flow(pdf_pages, measurements, sample_location)
+        plotting.plot_water_quality(pdf_pages, measurements, sample_location, self.water_qc_outlier_statistics)
+        plotting.plot_biomarker_normalization(pdf_pages, measurements, sample_location)
+        plotting.plot_general_outliers(pdf_pages, measurements, sample_location)
+        pdf_pages.close()
 
     def run_quality_control(self):
         """
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples_dict.items()):
-            if not os.path.exists(os.path.join(self.output_folder, "plots")):
-                os.makedirs(os.path.exists(os.path.join(self.output_folder, "plots")))
-            pdf_pages = PdfPages(os.path.join(self.output_folder, "plots", "{}.plots.pdf".format(sample_location)))
-            self.__distribute_pdf_plotter(pdf_pages)
+            measurements = self.__setup(sample_location, measurements)
             self.logger.log.info("\n####################################################\n"
-                             "\tSewage location: {} \n"
-                             "####################################################".format(sample_location))
+                                 "\tSewage location: {} "
+                                 "\n####################################################".format(sample_location))
+            self.logger.log.info("{}/{} new measurements to analyze".format(CalculatedColumns.get_num_of_unprocessed(measurements),
+                                                                            measurements.shape[0]))
+            progress_bar = self.logger.get_progress_bar(CalculatedColumns.get_num_of_unprocessed(measurements), "Analyzing samples")
+            self.sewageStat.set_sample_location_and_total_number(sample_location, CalculatedColumns.get_num_of_unprocessed(measurements))
+            for index, current_measurement in measurements.iterrows():
+                if CalculatedColumns.needs_processing(current_measurement):
+                    progress_bar.update(1)
+                    # -----------------  BIOMARKER QC -----------------------
+                    # 1. check for comments. Flag samples that contain any commentary.
+                    self.biomarkerQC.check_comments(sample_location, measurements, index)
+                    self.biomarkerQC.check_mean_sewage_flow_present(sample_location, measurements, index)
+                    # 2. Mark biomarker values below threshold which are excluded from the analysis.
+                    self.biomarkerQC.biomarker_below_threshold_or_empty(sample_location, measurements, index)
+                    # 3. Calculate pairwise biomarker values if biomarkers were not marked to be below threshold.
+                    self.biomarkerQC.calculate_biomarker_ratios(sample_location, measurements, index)
+                    # 4. Detect outliers
+                    self.biomarkerQC.detect_outliers(sample_location, measurements, index)
+                    # 5. Assign biomarker outliers based on ratio outliers
+                    self.biomarkerQC.assign_biomarker_outliers_based_on_ratio_flags(sample_location, measurements, index)
+                    self.biomarkerQC.analyze_usable_biomarkers(sample_location, measurements, index)
+                    # 6. Create report in case the last two biomarkers were identified as outliers
+                    # self.biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
 
-            #measurements = utils.convert_sample_list2pandas(measurements)
-            #measurements = measurements.drop(columns=["flags"])   # artefact from stored data --> will be removed later
-            measurements = measurements.fillna(value=np.nan)
-            measurements[Columns.DATE.value] = measurements[Columns.DATE.value].replace({r'(\d+-\d+-\d+).*': r'\1'}, regex=True)
-            measurements[Columns.DATE.value] = pd.to_datetime(measurements[Columns.DATE.value],
-                                                              format="%Y-%m-%d").dt.normalize()
-            # Sort by collection date. Newest last.
-            measurements.sort_values(by=Columns.DATE.value, ascending=True, inplace=True, ignore_index=True)
+                    # --------------------  SUROGATVIRUS QC -------------------
+                    self.surrogateQC.filter_dry_days_time_frame(sample_location, measurements, index)
+                    self.surrogateQC.is_surrogatevirus_outlier(sample_location, measurements, index)
 
-            self.__initalize_flags(measurements)
-            self.database.needs_recalcuation(sample_location, measurements, self.rerun_all)
+                    # --------------------  SEWAGE FLOW -------------------
+                    self.sewage_flow.sewage_flow_quality_control(sample_location, measurements, index)
 
-            self.logger.log.info("{}/{} new measurements to analyse".format(
-                CalculatedColumns.get_num_of_unprocessed(measurements), measurements.shape[0]))
+                    # --------------------  WATER QUALITY -------------------
+                    self.water_quality.check_water_quality(sample_location, measurements, index)
 
-            # -----------------  BIOMARKER QC -----------------------
-            # 1. check for comments. Flag samples that contain any commentary.
-            self.biomarkerQC.check_comments(sample_location, measurements)
-            self.biomarkerQC.check_mean_sewage_flow_present(sample_location, measurements)
-            # 2. Mark biomarker values below threshold which are excluded from the analysis.
-            self.biomarkerQC.biomarker_below_threshold_or_empty(sample_location, measurements)
-            # 3. Calculate pairwise biomarker values if biomarkers were not marked to be below threshold.
-            self.biomarkerQC.calculate_biomarker_ratios(sample_location, measurements)
-            # 4. Detect outliers
-            self.biomarkerQC.detect_outliers(sample_location, measurements)
-            # 5. Assign biomarker outliers based on ratio outliers
-            self.biomarkerQC.assign_biomarker_outliers_based_on_ratio_flags(sample_location, measurements)
+                    # --------------------  NORMALIZATION -------------------
+                    self.sewageNormalization.normalize_biomarker_values(sample_location, measurements, index)
+
+                    # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
+                    self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
+            progress_bar.close()
+            self.logger.log.info(self.sewageStat.print_statistics())
+            self.logger.log.info("Generating plots...")
+            self.__plot_results(measurements, sample_location)
             # Experimental: Final step explain flags
             measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[CalculatedColumns.FLAG.value])
-            self.biomarkerQC.analyze_usable_biomarkers(sample_location, measurements)
-            # 6. Create report in case the last two biomarkers were identified as outliers
-            self.biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
-
-            # --------------------  SUROGATVIRUS QC -------------------
-            self.surrogateQC.filter_dry_days_time_frame(sample_location, measurements)
-            self.surrogateQC.is_surrogatevirus_outlier(sample_location, measurements)
-
-            # --------------------  SEWAGE FLOW -------------------
-            self.sewage_flow.sewage_flow_quality_control(sample_location, measurements)
-
-            # --------------------  WATER QUALITY -------------------
-            self.water_quality.check_water_quality(sample_location, measurements)
-
-            # --------------------  NORMALIZATION -------------------
-            self.sewageNormalization.normalize_biomarker_values(sample_location, measurements)
-
-            # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
-            self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements)
-
-
-            # Experimental: Final step explain flags
-            measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[CalculatedColumns.FLAG.value])
+            self.logger.log.info("Add '{}' to database...".format(sample_location))
             self.database.add_sewage_location2db(sample_location, measurements)
+            self.logger.log.info("Export '{}' to excel file...".format(sample_location))
             self.save_dataframe(sample_location, measurements)
-            pdf_pages.close()
+
+
 
 
 if __name__ == '__main__':
@@ -212,7 +233,6 @@ if __name__ == '__main__':
                         help="Specifiy output folder. (default folder: 'sewage_qc')",
                         required=False)
     parser.add_argument('-r', '--rerun_all', action="store_true", help="Rerun the analysis on all samples.")
-    parser.add_argument('--interactive', action="store_true", help="Show plots interactively.")
     parser.add_argument('-v', '--verbosity', action="count", help="Increase output verbosity.")
     parser.add_argument('-q', '--quiet', action='store_true', help="Print litte output.")
 
@@ -321,7 +341,8 @@ if __name__ == '__main__':
                                    required=False)
 
     args = parser.parse_args()
-    sewageQuality = SewageQuality(args.input, args.output_folder, args.verbosity, args.quiet, args.rerun_all, args.interactive, args.biomarker_outlier_statistics, args.biomarker_min_threshold,
+    sewageQuality = SewageQuality(args.input, args.output_folder, args.verbosity, args.quiet, args.rerun_all,
+                                  args.biomarker_outlier_statistics, args.biomarker_min_threshold,
                                   args.min_number_biomarkers_for_outlier_detection,
                                   args.max_number_biomarkers_for_outlier_detection,
                                   args.report_number_of_biomarker_outliers, args.periode_month_surrogatevirus,
