@@ -173,8 +173,10 @@ class SewageQuality:
                                                                             measurements.shape[0]))
             progress_bar = self.logger.get_progress_bar(CalculatedColumns.get_num_of_unprocessed(measurements), "Analyzing samples")
             self.sewageStat.set_sample_location_and_total_number(sample_location, CalculatedColumns.get_num_of_unprocessed(measurements))
+            changes_deteced = False
             for index, current_measurement in measurements.iterrows():
                 if CalculatedColumns.needs_processing(current_measurement):
+                    changes_deteced = True
                     progress_bar.update(1)
                     # -----------------  BIOMARKER QC -----------------------
                     # 1. check for comments. Flag samples that contain any commentary.
@@ -208,15 +210,17 @@ class SewageQuality:
                     # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
                     self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
             progress_bar.close()
-            self.logger.log.info(self.sewageStat.print_statistics())
-            self.logger.log.info("Generating plots...")
-            self.__plot_results(measurements, sample_location)
-            # Experimental: Final step explain flags
-            measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[CalculatedColumns.FLAG.value])
-            self.logger.log.info("Add '{}' to database...".format(sample_location))
-            self.database.add_sewage_location2db(sample_location, measurements)
-            self.logger.log.info("Export '{}' to excel file...".format(sample_location))
-            self.save_dataframe(sample_location, measurements)
+            print("    ")
+            if changes_deteced:
+                self.logger.log.info(self.sewageStat.print_statistics())
+                self.logger.log.info("Generating plots...")
+                self.__plot_results(measurements, sample_location)
+                # Experimental: Final step explain flags
+                measurements['flags_explained'] = SewageFlag.explain_flag_series(measurements[CalculatedColumns.FLAG.value])
+                self.logger.log.info("Add '{}' to database...".format(sample_location))
+                self.database.add_sewage_location2db(sample_location, measurements)
+                self.logger.log.info("Export '{}' to excel file...".format(sample_location))
+                # self.save_dataframe(sample_location, measurements)
 
 
 
