@@ -150,7 +150,7 @@ class SewageQuality:
 
     def __plot_results(self, measurements: pd.DataFrame, sample_location):
         if not os.path.exists(os.path.join(self.output_folder, "plots")):
-            os.makedirs(os.path.exists(os.path.join(self.output_folder, "plots")))
+            os.makedirs(os.path.join(self.output_folder, "plots"))
         pdf_pages = PdfPages(os.path.join(self.output_folder, "plots", "{}.plots.pdf".format(sample_location)))
         plotting.plot_biomarker_outlier_summary(pdf_pages, measurements, sample_location, self.biomarker_outlier_statistics)
         plotting.plot_surrogatvirus(pdf_pages, measurements, sample_location, self.surrogatevirus_outlier_statistics)
