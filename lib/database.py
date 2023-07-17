@@ -91,8 +91,10 @@ class SewageDatabase:
                     if db_row.shape[0] > 0:
                         stored_checksums_list = self.__get_checksum_for_row(db_row.squeeze())
                         new_checksum = self.__get_checksum_for_row(row)[0]
+                        found = False
                         for stored_checksum in stored_checksums_list:
-                            if stored_checksum == new_checksum:
+                            if stored_checksum == new_checksum and not found:
+                                found = True
                                 needs_recalculation = False
                                 indices.append(db_row.index.tolist()[0])
                     new_measurements.at[index, CalculatedColumns.NEEDS_PROCESSING.value] = needs_recalculation

@@ -49,21 +49,21 @@ def convert_sample_list2pandas(measurements: List[SewageSample]):
     return table
 
 
-def detect_outliers(outlier_statitics, train_values, test_value):
+def detect_outliers(outlier_statistics, train_values, test_value):
     outlier_detected = []
-    if 'lof' in outlier_statitics or 'all' in outlier_statitics:
+    if 'lof' in outlier_statistics or 'all' in outlier_statistics:
         is_lof_outlier = is_outlier_local_outlier_factor(test_value, train_values)
         outlier_detected.append(is_lof_outlier)
-    if 'rf' in outlier_statitics or 'all' in outlier_statitics:
+    if 'rf' in outlier_statistics or 'all' in outlier_statistics:
         is_isolation_forest_outlier, isolation_forest_score_ratio = is_outlier_isolation_forest(test_value, train_values)
         outlier_detected.append(is_isolation_forest_outlier)
-    if 'ci' in outlier_statitics or 'all' in outlier_statitics:
+    if 'ci' in outlier_statistics or 'all' in outlier_statistics:
         is_confidence_interval_99_outlier, confidence_interval = is_confidence_interval_outlier(test_value, train_values, 0.99)
         outlier_detected.append(is_confidence_interval_99_outlier)
-    if 'iqr' in outlier_statitics or 'all' in outlier_statitics:
+    if 'iqr' in outlier_statistics or 'all' in outlier_statistics:
         is_iqr_outlier, iqr_range = interquartile_range(test_value, train_values)
         outlier_detected.append(is_iqr_outlier)
-    if 'zscore' in outlier_statitics or 'all' in outlier_statitics:
+    if 'zscore' in outlier_statistics or 'all' in outlier_statistics:
         is_zscore_outlier, z_score_threshold = is_outlier_modified_z_score(test_value, train_values)
         outlier_detected.append(is_zscore_outlier)
     return all(outlier_detected)

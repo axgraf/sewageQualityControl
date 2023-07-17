@@ -144,6 +144,9 @@ class SewageQuality:
         self.database.needs_recalcuation(sample_location, measurements, self.rerun_all)
         return measurements
 
+    def __is_plot_not_generated(self, sample_location):
+        return not os.path.exists(os.path.join(self.output_folder, "plots", "{}.plots.pdf".format(sample_location)))
+
     def __plot_results(self, measurements: pd.DataFrame, sample_location):
         if not os.path.exists(os.path.join(self.output_folder, "plots")):
             os.makedirs(os.path.join(self.output_folder, "plots"))
@@ -161,21 +164,20 @@ class SewageQuality:
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples_dict.items()):
-            if idx == 0:
+            if idx < 4:
                 continue
-
-            measurements = self.__setup(sample_location, measurements)
             self.logger.log.info("\n####################################################\n"
                                  "\tSewage location: {} "
                                  "\n####################################################".format(sample_location))
+            measurements = self.__setup(sample_location, measurements)
             self.logger.log.info("{}/{} new measurements to analyze".format(CalculatedColumns.get_num_of_unprocessed(measurements),
                                                                             measurements.shape[0]))
             progress_bar = self.logger.get_progress_bar(CalculatedColumns.get_num_of_unprocessed(measurements), "Analyzing samples")
             self.sewageStat.set_sample_location_and_total_number(sample_location, CalculatedColumns.get_num_of_unprocessed(measurements))
-            changes_deteced = False
+            changes_detected = False
             for index, current_measurement in measurements.iterrows():
                 if CalculatedColumns.needs_processing(current_measurement):
-                    changes_deteced = True
+                    changes_detected = True
                     progress_bar.update(1)
                     # -----------------  BIOMARKER QC -----------------------
                     # 1. check for comments. Flag samples that contain any commentary.
@@ -210,7 +212,7 @@ class SewageQuality:
                     self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
             progress_bar.close()
             print("    ")
-            if changes_deteced:
+            if changes_detected or self.__is_plot_not_generated(sample_location):
                 self.logger.log.info(self.sewageStat.print_statistics())
                 self.logger.log.info("Generating plots...")
                 self.__plot_results(measurements, sample_location)
@@ -219,8 +221,7 @@ class SewageQuality:
                 self.logger.log.info("Add '{}' to database...".format(sample_location))
                 self.database.add_sewage_location2db(sample_location, measurements)
                 self.logger.log.info("Export '{}' to excel file...".format(sample_location))
-                # self.save_dataframe(sample_location, measurements)
-
+                self.save_dataframe(sample_location, measurements)
 
 
 
@@ -316,7 +317,7 @@ if __name__ == '__main__':
     water_quality_group.add_argument('--min_number_of_last_measurements_for_water_qc', metavar="INT", default=9, type=int,
                                      help="The minimal number of last measurements required for water quality quality control. (default: 9)",
                                      required=False)
-    water_quality_group.add_argument('--water_qc_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',
+    water_quality_group.add_argument('--water_qc_outlier_statistics', metavar="METHOD", default=['lof','zscore','iqr'], nargs='+',
                                     help=(
                                         "Which outlier detection methods should be used for water qc? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
                                         "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"

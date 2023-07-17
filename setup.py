@@ -21,7 +21,7 @@ setup(
         'seaborn == 0.12.2',
         'tqdm == 4.65.0',
         'openpyxl == 3.0.10',
-        'adjustText'
+        'adjustText == 0.7.3'
     ]
     #include_package_data=True,
     #package_data={'': ['data/*.dat']},
