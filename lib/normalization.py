@@ -141,11 +141,12 @@ class SewageNormalization:
         num_flags += self.__num_biomarkers_flagged(current_measurement)
         # surrogate_virus_flags
         are_both_surrogate_virus_outliers, num_surrogate_virus_flags = self.__are_both_surrogate_virus_outliers(current_measurement)
-        num_flags += num_surrogate_virus_flags
         if are_both_surrogate_virus_outliers:
             self.sewageStat.add_outliers('Surrogate virus outlier')
             CalculatedColumns.add_outlier_reason(measurements, index, 'Surrogate virus outlier')
             is_outlier = True
+        else:
+            num_flags += num_surrogate_virus_flags
         if self.__is_sewage_flow_outlier(current_measurement):
             self.sewageStat.add_outliers('Sewage flow outlier')
             CalculatedColumns.add_outlier_reason(measurements, index, 'Sewage flow outlier')

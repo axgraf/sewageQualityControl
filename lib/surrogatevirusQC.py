@@ -73,7 +73,6 @@ class SurrogateVirusQC:
                 else:
                     self.sewageStat.add_surrogate_virus_outlier(sVirus, 'skipped')
 
-        #TODO Datensatz aussortieren, wenn beide Surrogatviren geflagged
 
 
 

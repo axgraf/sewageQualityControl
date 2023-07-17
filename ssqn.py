@@ -161,6 +161,9 @@ class SewageQuality:
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples_dict.items()):
+            if idx == 0:
+                continue
+
             measurements = self.__setup(sample_location, measurements)
             self.logger.log.info("\n####################################################\n"
                                  "\tSewage location: {} "
@@ -176,35 +179,35 @@ class SewageQuality:
                     progress_bar.update(1)
                     # -----------------  BIOMARKER QC -----------------------
                     # 1. check for comments. Flag samples that contain any commentary.
-                    # self.biomarkerQC.check_comments(sample_location, measurements, index)
-                    # self.biomarkerQC.check_mean_sewage_flow_present(sample_location, measurements, index)
-                    # # 2. Mark biomarker values below threshold which are excluded from the analysis.
-                    # self.biomarkerQC.biomarker_below_threshold_or_empty(sample_location, measurements, index)
-                    # # 3. Calculate pairwise biomarker values if biomarkers were not marked to be below threshold.
-                    # self.biomarkerQC.calculate_biomarker_ratios(sample_location, measurements, index)
-                    # # 4. Detect outliers
-                    # self.biomarkerQC.detect_outliers(sample_location, measurements, index)
-                    # # 5. Assign biomarker outliers based on ratio outliers
-                    # self.biomarkerQC.assign_biomarker_outliers_based_on_ratio_flags(sample_location, measurements, index)
-                    # self.biomarkerQC.analyze_usable_biomarkers(sample_location, measurements, index)
-                    # # 6. Create report in case the last two biomarkers were identified as outliers
-                    # # self.biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
+                    self.biomarkerQC.check_comments(sample_location, measurements, index)
+                    self.biomarkerQC.check_mean_sewage_flow_present(sample_location, measurements, index)
+                    # 2. Mark biomarker values below threshold which are excluded from the analysis.
+                    self.biomarkerQC.biomarker_below_threshold_or_empty(sample_location, measurements, index)
+                    # 3. Calculate pairwise biomarker values if biomarkers were not marked to be below threshold.
+                    self.biomarkerQC.calculate_biomarker_ratios(sample_location, measurements, index)
+                    # 4. Detect outliers
+                    self.biomarkerQC.detect_outliers(sample_location, measurements, index)
+                    # 5. Assign biomarker outliers based on ratio outliers
+                    self.biomarkerQC.assign_biomarker_outliers_based_on_ratio_flags(sample_location, measurements, index)
+                    self.biomarkerQC.analyze_usable_biomarkers(sample_location, measurements, index)
+                    # 6. Create report in case the last two biomarkers were identified as outliers
+                    # self.biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
 
                     # --------------------  SUROGATVIRUS QC -------------------
                     self.surrogateQC.filter_dry_days_time_frame(sample_location, measurements, index)
                     self.surrogateQC.is_surrogatevirus_outlier(sample_location, measurements, index)
 
                     # --------------------  SEWAGE FLOW -------------------
-                    # self.sewage_flow.sewage_flow_quality_control(sample_location, measurements, index)
-                    #
-                    # # --------------------  WATER QUALITY -------------------
-                    # self.water_quality.check_water_quality(sample_location, measurements, index)
-                    #
-                    # # --------------------  NORMALIZATION -------------------
-                    # self.sewageNormalization.normalize_biomarker_values(sample_location, measurements, index)
-                    #
-                    # # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
-                    # self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
+                    self.sewage_flow.sewage_flow_quality_control(sample_location, measurements, index)
+
+                    # --------------------  WATER QUALITY -------------------
+                    self.water_quality.check_water_quality(sample_location, measurements, index)
+
+                    # --------------------  NORMALIZATION -------------------
+                    self.sewageNormalization.normalize_biomarker_values(sample_location, measurements, index)
+
+                    # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
+                    self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
             progress_bar.close()
             print("    ")
             if changes_deteced:

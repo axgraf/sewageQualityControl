@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from lib import biomarkerQC
 from lib import constant
+from lib import statistics
 
 test_output_folder = 'tmp'
 
@@ -46,11 +47,12 @@ class TestBiomarkerCommentNotEmpty(TestCase):
 
 class TestBiomarkerBelowThreshold(TestCase):
     def setUp(self) -> None:
-        self.biomarkerQC = biomarkerQC.BiomarkerQC(output_folder=test_output_folder, biomarker_outlier_statistics=['iqr'],
+        sewageStat = statistics.SewageStat()
+        self.biomarkerQC = biomarkerQC.BiomarkerQC(output_folder=test_output_folder, sewageStat=sewageStat, biomarker_outlier_statistics=['iqr'],
                                                    min_number_biomarkers_for_outlier_detection=5,
                                                    min_biomarker_threshold=5,
                                                    max_number_biomarkers_for_outlier_detection=20,
-                                                   report_number_of_biomarker_outlier=None, plotting=False)
+                                                   report_number_of_biomarker_outlier=None)
         self.test_df = pd.DataFrame()
         start = datetime.datetime.today()
         date_list = [start.date() + datetime.timedelta(days=x+7) for x in range(len(np.arange(0, 20, 0.5)) + 1)]
@@ -60,10 +62,10 @@ class TestBiomarkerBelowThreshold(TestCase):
         # add biomarker flag columns
         for biomarker in constant.Columns.get_biomarker_columns():
             self.test_df[biomarker] = values
-            self.test_df[constant.Columns.get_biomarker_flag(biomarker)] = 0
+            self.test_df[constant.CalculatedColumns.get_biomarker_flag(biomarker)] = 0
         # add biomarker ratio flag columns
         for biomarker1, biomarker2 in itertools.combinations(constant.Columns.get_biomarker_columns(), 2):
-            self.test_df[constant.Columns.get_biomaker_ratio_flag(biomarker1, biomarker2)] = 0
+            self.test_df[constant.CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)] = 0
 
     def tearDown(self) -> None:
         if os.path.exists(test_output_folder):
@@ -76,8 +78,8 @@ class TestBiomarkerBelowThreshold(TestCase):
         correct_flags.extend([0] * 30)  # next five should fail
         self.biomarkerQC.biomarker_below_threshold_or_empty('', self.test_df)
         for biomarker in constant.Columns.get_biomarker_columns():
-            valid_result = pd.Series(correct_flags, name=constant.Columns.get_biomarker_flag(biomarker))
-            assert_series_equal(self.test_df[constant.Columns.get_biomarker_flag(biomarker)], valid_result)
+            valid_result = pd.Series(correct_flags, name=constant.CalculatedColumns.get_biomarker_flag(biomarker))
+            assert_series_equal(self.test_df[constant.CalculatedColumns.get_biomarker_flag(biomarker)], valid_result)
 
     def test_calculate_biomarker_ratios(self):
         self.biomarkerQC.biomarker_below_threshold_or_empty('', self.test_df)
@@ -104,7 +106,7 @@ class TestBiomarkerBelowThreshold(TestCase):
 
         biomarker_ratio_flags = []
         for biomarker1, biomarker2 in itertools.combinations(constant.Columns.get_biomarker_columns(), 2):
-            biomarker_ratio_flags.append(constant.Columns.get_biomaker_ratio_flag(biomarker1, biomarker2))
+            biomarker_ratio_flags.append(constant.CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2))
         ## testing ##
         idx = 18
         for biomarker in constant.Columns.get_biomarker_columns():
