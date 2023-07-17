@@ -77,15 +77,6 @@ class SewageDatabase:
             column = CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)
             if column in new_measurements:
                 new_measurements[column] = new_measurements[column].astype(np.int)
-        for column in Columns.get_surrogatevirus_columns():
-            column_flag = CalculatedColumns.get_surrogate_outlier_flag(column)
-            if column_flag in new_measurements:
-                new_measurements[column_flag] = new_measurements[column_flag].astype(np.int)
-            column_flag = CalculatedColumns.get_surrogate_flag(column)
-            if column_flag in new_measurements:
-                new_measurements[column_flag] = new_measurements[column_flag].astype(np.int)
-
-
 
     def needs_recalcuation(self, sample_location, new_measurements: pd.DataFrame, rerun_all: bool):
         if rerun_all:

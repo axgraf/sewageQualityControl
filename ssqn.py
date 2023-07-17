@@ -106,10 +106,6 @@ class SewageQuality:
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
             measurements[biomarker1 + "/" + biomarker2] = np.NAN
             measurements[CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)] = 0
-        for sVirus in Columns.get_surrogatevirus_columns():
-            measurements[CalculatedColumns.get_surrogate_flag(sVirus)] = 0
-        for sVirus in Columns.get_surrogatevirus_columns():
-            measurements[CalculatedColumns.get_surrogate_outlier_flag(sVirus)] = 0
         for c in CalculatedColumns:
             if not c.value in measurements:
                 if c.type == bool:
@@ -178,35 +174,35 @@ class SewageQuality:
                     progress_bar.update(1)
                     # -----------------  BIOMARKER QC -----------------------
                     # 1. check for comments. Flag samples that contain any commentary.
-                    self.biomarkerQC.check_comments(sample_location, measurements, index)
-                    self.biomarkerQC.check_mean_sewage_flow_present(sample_location, measurements, index)
-                    # 2. Mark biomarker values below threshold which are excluded from the analysis.
-                    self.biomarkerQC.biomarker_below_threshold_or_empty(sample_location, measurements, index)
-                    # 3. Calculate pairwise biomarker values if biomarkers were not marked to be below threshold.
-                    self.biomarkerQC.calculate_biomarker_ratios(sample_location, measurements, index)
-                    # 4. Detect outliers
-                    self.biomarkerQC.detect_outliers(sample_location, measurements, index)
-                    # 5. Assign biomarker outliers based on ratio outliers
-                    self.biomarkerQC.assign_biomarker_outliers_based_on_ratio_flags(sample_location, measurements, index)
-                    self.biomarkerQC.analyze_usable_biomarkers(sample_location, measurements, index)
-                    # 6. Create report in case the last two biomarkers were identified as outliers
-                    # self.biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
+                    # self.biomarkerQC.check_comments(sample_location, measurements, index)
+                    # self.biomarkerQC.check_mean_sewage_flow_present(sample_location, measurements, index)
+                    # # 2. Mark biomarker values below threshold which are excluded from the analysis.
+                    # self.biomarkerQC.biomarker_below_threshold_or_empty(sample_location, measurements, index)
+                    # # 3. Calculate pairwise biomarker values if biomarkers were not marked to be below threshold.
+                    # self.biomarkerQC.calculate_biomarker_ratios(sample_location, measurements, index)
+                    # # 4. Detect outliers
+                    # self.biomarkerQC.detect_outliers(sample_location, measurements, index)
+                    # # 5. Assign biomarker outliers based on ratio outliers
+                    # self.biomarkerQC.assign_biomarker_outliers_based_on_ratio_flags(sample_location, measurements, index)
+                    # self.biomarkerQC.analyze_usable_biomarkers(sample_location, measurements, index)
+                    # # 6. Create report in case the last two biomarkers were identified as outliers
+                    # # self.biomarkerQC.report_last_biomarkers_invalid(sample_location, measurements)
 
                     # --------------------  SUROGATVIRUS QC -------------------
                     self.surrogateQC.filter_dry_days_time_frame(sample_location, measurements, index)
                     self.surrogateQC.is_surrogatevirus_outlier(sample_location, measurements, index)
 
                     # --------------------  SEWAGE FLOW -------------------
-                    self.sewage_flow.sewage_flow_quality_control(sample_location, measurements, index)
-
-                    # --------------------  WATER QUALITY -------------------
-                    self.water_quality.check_water_quality(sample_location, measurements, index)
-
-                    # --------------------  NORMALIZATION -------------------
-                    self.sewageNormalization.normalize_biomarker_values(sample_location, measurements, index)
-
-                    # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
-                    self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
+                    # self.sewage_flow.sewage_flow_quality_control(sample_location, measurements, index)
+                    #
+                    # # --------------------  WATER QUALITY -------------------
+                    # self.water_quality.check_water_quality(sample_location, measurements, index)
+                    #
+                    # # --------------------  NORMALIZATION -------------------
+                    # self.sewageNormalization.normalize_biomarker_values(sample_location, measurements, index)
+                    #
+                    # # --------------------  MARK OUTLIERS FROM ALL STEPS -------------------
+                    # self.sewageNormalization.decide_biomarker_usable_based_on_flags(sample_location, measurements, index)
             progress_bar.close()
             self.logger.log.info(self.sewageStat.print_statistics())
             self.logger.log.info("Generating plots...")
@@ -266,7 +262,7 @@ if __name__ == '__main__':
     surrogatevirus_group.add_argument('--periode_month_surrogatevirus', metavar="INT", default=4, type=int,
                         help="The periode of time (month) taken into account for surrogatevirus outliers. (default: 4)",
                         required=False)
-    surrogatevirus_group.add_argument('--min_number_surrogatevirus_for_outlier_detection', metavar="FLOAT", default=2, type=float,
+    surrogatevirus_group.add_argument('--min_number_surrogatevirus_for_outlier_detection', metavar="INT", default=9, type=int,
                         help="Minimal number of surrogatevirus measurements. (default: 2)",
                         required=False)
     surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',

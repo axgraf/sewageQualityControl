@@ -90,10 +90,10 @@ def plot_surrogatvirus (pdf_plotter, measurements_df, sample_location, outlier_d
         dat['value'] = measurements_df[sVirus]
         dat['type'] = sVirus
         dat['outlier'] = np.where(
-            (SewageFlag.is_flag_set_for_series(measurements_df[CalculatedColumns.get_surrogate_flag(sVirus)],
+            (SewageFlag.is_flag_set_for_series(measurements_df[CalculatedColumns.FLAG.value],
                                                SewageFlag.SURROGATEVIRUS_VALUE_NOT_USABLE)),
             'not tested', np.where((SewageFlag.is_flag_set_for_series(
-                measurements_df[CalculatedColumns.get_surrogate_outlier_flag(sVirus)], SewageFlag.SURROGATEVIRUS_OUTLIER)),
+                measurements_df[CalculatedColumns.FLAG.value], CalculatedColumns.get_surrogate_outlier_flag(sVirus))),
                 'outlier', 'inlier'))
         plot_frame = pd.concat([plot_frame, dat])
 

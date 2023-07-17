@@ -27,18 +27,19 @@ class SewageFlag(Flag):
 
     ### surrogatvirus flags ###
     SURROGATEVIRUS_VALUE_NOT_USABLE = 1024
-    SURROGATEVIRUS_OUTLIER = 2048
+    SURROGATEVIRUS_OUTLIER_PMMOV = 2048
+    SURROGATEVIRUS_OUTLIER_CRASSPHAGE = 4096
 
     ### water quality ####
-    NOT_ENOUGH_AMMONIUM_VALUES = 4096
-    AMMONIUM_OUTLIER = 8192
-    NOT_ENOUGH_CONDUCTIVITY_VALUES = 16384
-    CONDUCTIVITY_OUTLIER = 32768
+    NOT_ENOUGH_AMMONIUM_VALUES = 8192
+    AMMONIUM_OUTLIER = 16384
+    NOT_ENOUGH_CONDUCTIVITY_VALUES = 32768
+    CONDUCTIVITY_OUTLIER = 65536
 
     ### biomarker normalization ###
-    NOT_ENOUGH_BIOMARKERS_FOR_NORMALIZATION = 65536
-    REPRODUCTION_NUMBER_OUTLIER_SKIPPED = 131072
-    REPRODUCTION_NUMBER_OUTLIER = 262144
+    NOT_ENOUGH_BIOMARKERS_FOR_NORMALIZATION = 131072
+    REPRODUCTION_NUMBER_OUTLIER_SKIPPED = 262144
+    REPRODUCTION_NUMBER_OUTLIER = 524288
 
     def __str__(self):
         return self.name
@@ -155,8 +156,6 @@ class CalculatedColumns(Enum):
     BIOMARKER_FLAG = "flag_biomaker", np.int
     BIOMARKER_RATIO_FLAG = "flag_ratio", np.int
     NUMBER_OF_USABLE_BIOMARKERS = "num_usable_biomarkers", np.int
-    SURROGATEVIRUS_FLAG = "flag_surrogatevirus", np.int
-    SURROGATEVIRUS_OUTLIER_FLAG = "flag_surrogatevirus_outlier", np.int
     NORMALIZED_MEAN_BIOMARKERS = "normalized_mean_biomarkers", np.float
     BASE_REPRODUCTION_FACTOR = "base_reproduction_factor", np.float
     NEEDS_PROCESSING = "needs_processing", np.bool
@@ -209,8 +208,15 @@ class CalculatedColumns(Enum):
         return CalculatedColumns.BIOMARKER_RATIO_FLAG.value + "_" + biomarker1 + "/" + biomarker2
 
     @staticmethod
-    def get_surrogate_outlier_flag(sVirus) -> str:
-        return CalculatedColumns.SURROGATEVIRUS_OUTLIER_FLAG.value + "_" + sVirus
+    def get_surrogate_outlier_flag(sVirus) -> SewageFlag:
+
+        outlier_flag = ""
+        if sVirus == Columns.PMMOV.value:
+            outlier_flag = SewageFlag.SURROGATEVIRUS_OUTLIER_PMMOV
+        elif sVirus == Columns.CRASSPHAGE.value:
+            outlier_flag = SewageFlag.SURROGATEVIRUS_OUTLIER_CRASSPHAGE
+
+        return outlier_flag
 
     @staticmethod
     def get_surrogate_flag(sVirus) -> str:
@@ -238,7 +244,7 @@ class Columns(Enum):
     AMMONIUM = "nh4n"
     CONDUCTIVITY = "lf"
     MEAN_SEWAGE_FLOW = "mean_sewage_flow"
-    CROSSPHAGE = "crassphage"
+    CRASSPHAGE = "crassphage"
     PMMOV = "pmmov"
     TROCKENTAG = "trockentag"
 
@@ -251,6 +257,6 @@ class Columns(Enum):
 
     @staticmethod
     def get_surrogatevirus_columns():
-        surrogatevirus_columns = [Columns.CROSSPHAGE.value, Columns.PMMOV.value]
+        surrogatevirus_columns = [Columns.CRASSPHAGE.value, Columns.PMMOV.value]
         return surrogatevirus_columns
    

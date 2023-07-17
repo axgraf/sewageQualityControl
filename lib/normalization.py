@@ -95,7 +95,7 @@ class SewageNormalization:
         all_surrogate_virus_outliers = []
         num_surrogate_virus_flags = 0
         for sVirus in Columns.get_surrogatevirus_columns():
-            is_outlier = SewageFlag.is_flag(current_measurement[CalculatedColumns.get_surrogate_outlier_flag(sVirus)], SewageFlag.SURROGATEVIRUS_OUTLIER)
+            is_outlier = SewageFlag.is_flag(current_measurement[CalculatedColumns.FLAG.value], CalculatedColumns.get_surrogate_outlier_flag(sVirus))
             if is_outlier:
                 num_surrogate_virus_flags += 1
             all_surrogate_virus_outliers.append(is_outlier)
