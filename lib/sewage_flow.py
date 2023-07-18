@@ -65,9 +65,12 @@ class SewageFlow:
                     self.sewageStat.add_sewage_flow_outlier('probable_typo')
                     measurements.at[index, CalculatedColumns.FLAG.value] += SewageFlag.SEWAGE_FLOW_PROBABLE_TYPO.value
                 # is the mean flow a factor of N (default: 2) higher than the dry weather flow --> heavy precipitation
-                elif (current_mean_flow / dry_flow) > self.heavy_precipitation_factor:
+                elif (current_mean_flow / dry_flow) > 3:
                     self.sewageStat.add_sewage_flow_outlier('heavy_precipitation')
                     measurements.at[index, CalculatedColumns.FLAG.value] += SewageFlag.SEWAGE_FLOW_HEAVY_PRECIPITATION.value
+                elif (current_mean_flow / dry_flow) > self.heavy_precipitation_factor:
+                    self.sewageStat.add_sewage_flow_outlier('precipitation')
+                    measurements.at[index, CalculatedColumns.FLAG.value] += SewageFlag.SEWAGE_FLOW_PRECIPITATION.value
                 # is the mean flow a factor of N (default: 1.5) less than the dry weather flow --> probably typo
                 elif (dry_flow / current_mean_flow) > self.mean_sewage_flow_below_typo_factor:
                     self.sewageStat.add_sewage_flow_outlier('probable_typo')

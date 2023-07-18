@@ -125,7 +125,7 @@ def plot_surrogatvirus (pdf_plotter, measurements_df, sample_location, outlier_d
     g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=6, sharey=False, legend_out=True)
     min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
     max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=10)
-    g.set(xlim=(min_date, max_date))
+    g.set(xlim=(min_date, max_date), ylim=(0,624288))
     g.map_dataframe(sns.scatterplot, x="date", y="value", hue="outlier", palette=get_label_colors())
     __add_outlier_date_labels2ax(g, labels_dict)
     plt.legend(loc="upper center", bbox_to_anchor=(.5, -0.2), ncol=3, title=None, frameon=True)

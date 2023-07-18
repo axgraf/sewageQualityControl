@@ -239,8 +239,8 @@ if __name__ == '__main__':
     parser.add_argument('-q', '--quiet', action='store_true', help="Print litte output.")
 
     biomarker_qc_group = parser.add_argument_group("Biomarker quality control")
-    biomarker_qc_group.add_argument('--biomarker_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',
-                        help=("Which outlier detection methods should be used? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
+    biomarker_qc_group.add_argument('--biomarker_outlier_statistics', metavar="METHOD", default=['lof', 'iqr'], nargs='+',
+                        help=("Which outlier detection methods should be used? Multiple selections allowed. (default: 'lof','iqr')\n"
                               "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                               "E.g. to select 'rf' and 'iqr' use: --biomarker_outlier_statistics rf iqr \n"
                               "\tlof = local outlier factor\n"
@@ -271,9 +271,9 @@ if __name__ == '__main__':
     surrogatevirus_group.add_argument('--min_number_surrogatevirus_for_outlier_detection', metavar="INT", default=9, type=int,
                         help="Minimal number of surrogatevirus measurements. (default: 2)",
                         required=False)
-    surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['lof','rf','iqr'], nargs='+',
+    surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['lof', 'iqr'], nargs='+',
                                     help=(
-                                        "Which outlier detection methods should be used for surrogatevirus qc? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
+                                        "Which outlier detection methods should be used for surrogatevirus qc? Multiple selections allowed. (default: 'lof','iqr')\n"
                                         "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                                         "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
                                         "\tlof = local outlier factor\n"
@@ -337,9 +337,9 @@ if __name__ == '__main__':
     normalization_group.add_argument('--min_number_of_biomarkers_for_normalization', metavar="INT", default=2, type=int,
                                      help="Minimal number of biomarkers used for normalization. (default: 2)",
                                      required=False)
-    normalization_group.add_argument('--base_reproduction_value_factor', metavar="FLOAT", default=4.2, type=float,
+    normalization_group.add_argument('--base_reproduction_value_factor', metavar="FLOAT", default=3.8, type=float,
                                    help="Factor below which the mean normalized biomarker value must be in comparison "
-                                        "to the mean normalized biomarker value of the last 7 days. (default: 4.2)",
+                                        "to the mean normalized biomarker value of the last 7 days. (default: 3.8)",
                                    required=False)
 
     args = parser.parse_args()
