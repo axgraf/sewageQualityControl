@@ -164,8 +164,6 @@ class SewageQuality:
         Main method to run the quality checks and normalization
         """
         for idx, (sample_location, measurements) in enumerate(self.sewage_samples_dict.items()):
-            if idx < 4:
-                continue
             self.logger.log.info("\n####################################################\n"
                                  "\tSewage location: {} "
                                  "\n####################################################".format(sample_location))
