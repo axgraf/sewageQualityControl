@@ -167,7 +167,8 @@ class SewageQuality:
             self.logger.log.info("\n####################################################\n"
                                  "\tSewage location: {} "
                                  "\n####################################################".format(sample_location))
-            measurements = self.__setup(sample_location, measurements)
+            measurements, [] = self.__setup(sample_location, measurements)
+            ### Plausibilitätscheck -> bool
             self.logger.log.info("{}/{} new measurements to analyze".format(CalculatedColumns.get_num_of_unprocessed(measurements),
                                                                             measurements.shape[0]))
             progress_bar = self.logger.get_progress_bar(CalculatedColumns.get_num_of_unprocessed(measurements), "Analyzing samples")

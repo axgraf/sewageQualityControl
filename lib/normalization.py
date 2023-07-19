@@ -63,7 +63,6 @@ class SewageNormalization:
             self.sewageStat.add_reproduction_factor_outlier('skipped')
 
     def normalize_biomarker_values(self, sample_location: str, measurements: pd.DataFrame, index) -> None:
-        current_measurement = measurements.iloc[index]
         normalized_mean_biomarker = self.__normalize_with_sewage_flow(measurements, index)
         if normalized_mean_biomarker:
             measurements.at[index, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value] = normalized_mean_biomarker
@@ -104,13 +103,16 @@ class SewageNormalization:
     def __is_sewage_flow_outlier(self, current_measurement: pd.Series) -> bool:
         flag_value = current_measurement[CalculatedColumns.FLAG.value]
         # too heavy precipitation or typo in sewage flow
-        return SewageFlag.is_flag(flag_value, SewageFlag.SEWAGE_FLOW_PROBABLE_TYPO) or \
-            SewageFlag.is_flag(flag_value, SewageFlag.SEWAGE_FLOW_PRECIPITATION)
+        return SewageFlag.is_flag(flag_value, SewageFlag.SEWAGE_FLOW_PRECIPITATION)
 
     def __is_sewage_heavy_precipitation_outlier(self, current_measurement: pd.Series) -> bool:
         flag_value = current_measurement[CalculatedColumns.FLAG.value]
         # too heavy precipitation or typo in sewage flow
         return SewageFlag.is_flag(flag_value, SewageFlag.SEWAGE_FLOW_HEAVY_PRECIPITATION)
+
+    def __is_sewage_probable_typo(self, current_measurement: pd.Series) -> bool:
+        flag_value = current_measurement[CalculatedColumns.FLAG.value]
+        return SewageFlag.is_flag(flag_value, SewageFlag.SEWAGE_FLOW_PROBABLE_TYPO)
 
     def __get_num_water_quality_flags(self, current_measurement: pd.Series) -> int:
         flag_value = current_measurement[CalculatedColumns.FLAG.value]
@@ -137,8 +139,6 @@ class SewageNormalization:
         current_measurement = measurements.iloc[index]
         usable = 0
         num_flags = 0
-        if index == 109:
-            print("here")
         is_outlier = False
         if self.__are_comments_not_empty(current_measurement):
             num_flags += 1
@@ -165,7 +165,10 @@ class SewageNormalization:
             self.sewageStat.add_outliers('Sewage flow outlier')
             CalculatedColumns.add_outlier_reason(measurements, index, 'Sewage flow outlier')
             is_outlier = True
-
+        if self.__is_sewage_probable_typo(current_measurement):   # probable typo outlier
+            self.sewageStat.add_outliers('Sewage flow outlier')
+            CalculatedColumns.add_outlier_reason(measurements, index, 'Sewage flow outlier')
+            is_outlier = True
         num_flags += self.__get_num_water_quality_flags(current_measurement)
         if self.__is_reproduction_factor_outlier(current_measurement):
             self.sewageStat.add_outliers('Reproduction factor outlier')
@@ -181,7 +184,6 @@ class SewageNormalization:
             usable += 1
             measurements.at[index, CalculatedColumns.USABLE.value] = True
             # remove biomarker ratio outliers in case the sample is valid
-
             self.__clear_biomarker_ratio_outliers(measurements, index)
 
 
