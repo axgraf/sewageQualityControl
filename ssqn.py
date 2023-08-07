@@ -18,6 +18,7 @@ import lib.utils as utils
 import lib.statistics as sewageStat
 import lib.plotting as plotting
 import lib.database as db
+import re
 
 
 class SewageQuality:
@@ -124,10 +125,31 @@ class SewageQuality:
         measurements.to_excel(output_file, index=False)
 
     def __setup(self, sample_location, measurements: pd.DataFrame):
+        plausibility_dict = {}
         measurements = measurements.fillna(value=np.nan)
         measurements[Columns.DATE.value] = measurements[Columns.DATE.value].replace({r'(\d+-\d+-\d+).*': r'\1'}, regex=True)
-        measurements[Columns.DATE.value] = pd.to_datetime(measurements[Columns.DATE.value],
-                                                          format="%Y-%m-%d").dt.normalize()
+
+        # check if the date format is YYYY-mm-dd
+        format_not_plausible = measurements[measurements[Columns.DATE.value].str.contains("[\d{4}\-\d{2}\-\d{2}]").eq(False)].index.tolist()
+        if len(format_not_plausible) > 0:
+            plausibility_dict["format_not_plausible_index"] = format_not_plausible
+        measurements[Columns.DATE.value] = pd.to_datetime(measurements[Columns.DATE.value], format="%Y-%m-%d").dt.normalize()
+
+        # check if the year of the measurement is plausible: Corona pandemic started in 2020
+        year_not_plausible = measurements[(measurements[Columns.DATE.value].dt.year > pd.to_datetime("2019", format="%Y").year).eq(False)].index.tolist()
+        if len(year_not_plausible) > 0:
+            plausibility_dict["year_not_plausible_index"] = year_not_plausible
+
+        # check if the month value is <=12
+        month_not_plausible = measurements[(measurements[Columns.DATE.value].dt.month <= pd.to_datetime("12", format="%m").month).eq(False)].index.tolist()
+        if len(month_not_plausible) > 0:
+            plausibility_dict["month_not_plausible_index"] = month_not_plausible
+
+        # check if the month value is <=31
+        day_not_plausible = measurements[(measurements[Columns.DATE.value].dt.day <= pd.to_datetime("31", format="%d").day).eq(False)].index.tolist()
+        if len(day_not_plausible) > 0:
+            plausibility_dict["day_not_plausible_index"] = day_not_plausible
+
         # setup comment fields
         measurements[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]] = \
             measurements[[Columns.COMMENT_ANALYSIS.value, Columns.COMMENT_OPERATION.value]].apply(
@@ -142,7 +164,7 @@ class SewageQuality:
         measurements.sort_values(by=Columns.DATE.value, ascending=True, inplace=True, ignore_index=True)
         self.__initalize_columns(measurements)
         self.database.needs_recalcuation(sample_location, measurements, self.rerun_all)
-        return measurements
+        return plausibility_dict, measurements
 
     def __is_plot_not_generated(self, sample_location):
         return not os.path.exists(os.path.join(self.output_folder, "plots", "{}.plots.pdf".format(sample_location)))
@@ -167,8 +189,10 @@ class SewageQuality:
             self.logger.log.info("\n####################################################\n"
                                  "\tSewage location: {} "
                                  "\n####################################################".format(sample_location))
-            measurements, [] = self.__setup(sample_location, measurements)
-            ### Plausibilitätscheck -> bool
+            plausibility_dict, measurements = self.__setup(sample_location, measurements)
+            ### Plausibilitätscheck: dict with the index of the odd values
+            if len(plausibility_dict) > 0:
+                self.logger.log.info("Check date filed:{}".format(plausibility_dict))
             self.logger.log.info("{}/{} new measurements to analyze".format(CalculatedColumns.get_num_of_unprocessed(measurements),
                                                                             measurements.shape[0]))
             progress_bar = self.logger.get_progress_bar(CalculatedColumns.get_num_of_unprocessed(measurements), "Analyzing samples")
@@ -270,7 +294,7 @@ if __name__ == '__main__':
                         help="The periode of time (month) taken into account for surrogatevirus outliers. (default: 4)",
                         required=False)
     surrogatevirus_group.add_argument('--min_number_surrogatevirus_for_outlier_detection', metavar="INT", default=9, type=int,
-                        help="Minimal number of surrogatevirus measurements. (default: 2)",
+                        help="Minimal number of surrogatevirus measurements. (default: 9)",
                         required=False)
     surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['lof', 'iqr'], nargs='+',
                                     help=(
