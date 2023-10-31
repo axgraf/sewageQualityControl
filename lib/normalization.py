@@ -35,8 +35,8 @@ class SewageNormalization:
         if current_measurement[CalculatedColumns.NUMBER_OF_USABLE_BIOMARKERS.value] >= self.min_number_of_biomarkers_for_normalization:
             if SewageFlag.is_not_flag(current_measurement[CalculatedColumns.FLAG.value], SewageFlag.MISSING_MEAN_SEWAGE_FLOW):
                 biomarker_values = self.__get_usable_biomarkers(current_measurement)
-                mean_sewage_flow = current_measurement[Columns.MEAN_SEWAGE_FLOW.value]
-                mean_biomarker_value = np.mean(biomarker_values)
+                mean_sewage_flow = (current_measurement[Columns.MEAN_SEWAGE_FLOW.value] / 1000) * 60 * 60 * 24  # from l/s --> m³/day
+                mean_biomarker_value = np.mean(biomarker_values) * 1000 * 1000  # from genecopies/ml --> mean genecopies/m³
                 normalized_mean_biomarker = round(mean_biomarker_value * mean_sewage_flow, 2)
                 return normalized_mean_biomarker
         else:
