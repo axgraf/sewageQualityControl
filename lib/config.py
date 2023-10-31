@@ -23,7 +23,7 @@ class Config:
         self.server = config['General']['server']
         self.authentication_endpoint = self.server + config['General']['authentication_endpoint']
 
-        self.sewage_upload_endpoint = self.server + config['General']['sewage_upload_endpoint']
+        self.sewage_get_all_samples_endpoint = self.server + config['General']['sewage_get_all_endpoint']
 
         self.gis_url = config['ARCGIS']['gis_url']
         self.gis_user = config['ARCGIS']['gis_user']

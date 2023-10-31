@@ -12,14 +12,24 @@ class SewageSample:
         #self.spatialReference = feature['geometry']['spatialReference']['latestWkid']
         self.arcgisId = feature['attributes']['ObjectId']
         self.location_name = feature['attributes']['NAME']
+        self.name = feature['attributes']['NAME']
         #self.description = feature['attributes']['BESCHREIBUNG']
         #self.locationType = feature['attributes']['TYP']
-        timestamp = feature['attributes']['ENDE']
+#        timestamp = feature['attributes']['ENDE']
+        timestamp_end = feature['attributes']['ENDE']
         self.collectionDate = None
-        if timestamp:
-            self.collectionDate = datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%d')
-        else:
-            logging.warning("Warning: No collection date. Sample location name: '{}' with ARCGIS Id: '{}'".format(self.location_name, self.arcgisId))
+        self.end_date = None
+        if timestamp_end:
+            self.end_date = datetime.fromtimestamp(timestamp_end / 1000).strftime('%Y-%m-%d %H:%M')
+            self.collectionDate = datetime.fromtimestamp(timestamp_end / 1000).strftime('%Y-%m-%d')
+        timestamp_begin = feature['attributes']['ANFANG']
+        self.begin_date = None
+        if timestamp_begin:
+            self.begin_date = datetime.fromtimestamp(timestamp_begin / 1000).strftime('%Y-%m-%d  %H:%M')
+            if self.collectionDate is None:
+                self.collectionDate = datetime.fromtimestamp(timestamp_begin / 1000).strftime('%Y-%m-%d')
+        if self.collectionDate is None:
+            logging.warning("Warning: No collection date. Sample location name: '{}' with ARCGIS Id: '{}'".format(self.name, self.arcgisId))
         self.mean_sewage_flow = feature['attributes']['VOLUMENSTROM']
         #self.weather = feature['attributes']['WETTER']
         #self.sampleProcedureType = feature['attributes']['PN_ART']

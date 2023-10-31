@@ -42,8 +42,6 @@ class WaterQuality:
 
 
     def __detect_outliers_in_conductivity(self, sample_location, measurements: pd.DataFrame, index):
-        if index == 93:
-            print("here")
         current_measurement = measurements.iloc[index]
         last_values = get_last_N_month_and_days(measurements, current_measurement, Columns.CONDUCTIVITY.value,
                                        self.water_quality_number_of_last_month, 0, SewageFlag.CONDUCTIVITY_OUTLIER)

@@ -1,8 +1,10 @@
 # Created by alex at 28.06.23
 import itertools
 import dateutil
+import matplotlib.patches
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from adjustText import adjust_text
 from .constant import *
 
@@ -12,9 +14,10 @@ sns.set_context("talk")
 
 
 def get_label_colors():
-    colors = {'not tested': '#505050',
-              'inlier': '#1f77b4',
-              'outlier': '#d62728'
+    colors = {'inlier': '#1f77b4',
+              'not tested': '#505050',
+              'outlier': '#d62728',
+              'outlier recall': 'orange'
               }
     return colors
 
@@ -85,10 +88,16 @@ def plot_biomarker_outlier_summary(pdf_plotter, measurements_df, sample_location
                 get_date_outlier_labels_flags(plot_frame, 'biomarker_ratio', biomarker_ratio, 'outlier', SewageFlag.BIOMARKER_RATIO_OUTLIER, 'log2[ratio]')
 
     if plot_frame.shape[0] > 0:
+#        plot_frame['outlier'] = np.where(
+#            (SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)),
+#            'not tested',
+ #           np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER)), 'outlier', 'inlier'))
+
         plot_frame['outlier'] = np.where(
             (SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)),
             'not tested',
-            np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER)), 'outlier', 'inlier'))
+            np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER_REMOVED)), 'outlier recall',
+                     np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER)), 'outlier', 'inlier')))
 
         g = sns.FacetGrid(plot_frame, col="biomarker_ratio", col_wrap=1, margin_titles=True, height=5, aspect=6, sharey=False, legend_out=True)
         min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
@@ -97,7 +106,12 @@ def plot_biomarker_outlier_summary(pdf_plotter, measurements_df, sample_location
         g.map_dataframe(sns.scatterplot, x="date", y="log2[ratio]", hue="outlier", palette=get_label_colors())
         # add outlier dates as text labels to each axis
         __add_outlier_date_labels2ax(g, labels_dict)
-        plt.legend(loc="upper center", bbox_to_anchor=(.5, -0.2), ncol=3, title=None, frameon=True)
+        color_dict = get_label_colors()
+        legend_patches = []
+        for label, color in color_dict.items():
+            #legend_patches.append(matplotlib.patches.Patch(color=color, label=label))
+            legend_patches.append(Line2D([0], [0], marker='o', markerfacecolor=color, color='white', linewidth=0, label=label, markersize=15))
+        plt.legend(handles=legend_patches, loc="upper center", bbox_to_anchor=(.5, -0.2), ncol=3, title=None, frameon=True)
         g.set_titles(row_template='{row_name}', col_template='{col_name}')
         g.fig.subplots_adjust(top=0.9, bottom=0.1)
         g.fig.suptitle("Biomarker ratios for '{}' -  Outlier detection methods: {}".format(sample_location, outlier_detection_methods))

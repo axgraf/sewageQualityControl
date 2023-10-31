@@ -11,6 +11,7 @@ import tqdm
 import scipy.stats as st
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
+from sklearn.svm import OneClassSVM
 from .sewage import SewageSample
 from .constant import *
 
@@ -51,6 +52,9 @@ def convert_sample_list2pandas(measurements: List[SewageSample]):
 
 def detect_outliers(outlier_statistics, train_values, test_value):
     outlier_detected = []
+    if 'svm' in outlier_statistics or 'all' in outlier_statistics:
+        is_svm_outlier = is_oneClassSVM(test_value, train_values)
+        outlier_detected.append(is_svm_outlier)
     if 'lof' in outlier_statistics or 'all' in outlier_statistics:
         is_lof_outlier = is_outlier_local_outlier_factor(test_value, train_values)
         outlier_detected.append(is_lof_outlier)
@@ -67,6 +71,7 @@ def detect_outliers(outlier_statistics, train_values, test_value):
         is_zscore_outlier, z_score_threshold = is_outlier_modified_z_score(test_value, train_values)
         outlier_detected.append(is_zscore_outlier)
     return all(outlier_detected)
+
 
 
 def is_outlier_local_outlier_factor(test_value: float, train_values: List[float], contamination='auto'):
@@ -88,6 +93,21 @@ def is_outlier_local_outlier_factor(test_value: float, train_values: List[float]
     prediction = lof_novelty.predict(test_value)
     return prediction[0] == -1
 
+
+def is_oneClassSVM(test_value: float, train_values: List[float]):
+    """
+    One-class SVM with non-linear kernel (RBF). One-class SVM is an unsupervised algorithm
+    that learns a decision function for novelty detection: classifying new data as similar or different to the training set.
+    :param test_value: the value to be checked as an outlier
+    :param train_values: values to be used for training the model
+    """
+    model = OneClassSVM(nu=0.1, kernel="rbf", gamma=0.2)
+    model.fit(np.array(train_values).reshape(-1, 1))
+    prediction = model.predict(np.array(test_value).reshape(-1, 1))   #1 = inlier;  -1 : outlier
+    print(prediction)
+    if prediction[0] == 1:
+        return False
+    return True
 
 def is_outlier_isolation_forest(test_value: float, train_values: List[float], contamination=0.1):
     """
@@ -156,9 +176,10 @@ def is_confidence_interval_outlier(test_value: float, train_values: List[float],
     return True, confidence_interval
 
 
-def get_last_N_month_and_days(measurements_df: pd.DataFrame, current_measurement, column_name, num_month, num_days, sewage_flag: SewageFlag = None):
+def get_last_N_month_and_days(measurements_df: pd.DataFrame, current_measurement, column_name, num_month, num_days,
+                              sewage_flag: SewageFlag = None, additional_sewage_flag: SewageFlag = None):
     """
-    obtain last values from last N month from the data frame. In case a flag is provided values that do have the flag set
+    Obtain last values from last N month from the data frame. In case a flag is provided values that do have the flag set
     will be filtered.
 
     :param measurements_df: full data frame ot select last values
@@ -167,6 +188,7 @@ def get_last_N_month_and_days(measurements_df: pd.DataFrame, current_measurement
     :param num_month: number of last month to select values
     :param num_days: number of last days to select values
     :param sewage_flag: Sewage flag to filter for previous outliers; must be not set in flags
+    :param additional_sewage_flag: Additional Sewage flag to filter for previous outliers; must be not set in flags
     :return: data frame with entries from last N month
     """
     min_date = current_measurement[Columns.DATE.value]
@@ -179,6 +201,8 @@ def get_last_N_month_and_days(measurements_df: pd.DataFrame, current_measurement
     # remove outliers based on sewage_flag -> filters values which do not have the flag
     if sewage_flag:
         last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[CalculatedColumns.FLAG.value], sewage_flag)]
+    if additional_sewage_flag:
+        last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[CalculatedColumns.FLAG.value], additional_sewage_flag)]
     last_values = last_values[last_values[column_name].notna()]
     return last_values
 

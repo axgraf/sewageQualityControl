@@ -124,7 +124,6 @@ class TestBiomarkerBelowThreshold(TestCase):
         self.biomarkerQC.calculate_biomarker_ratios('', self.test_df)
         self.biomarkerQC.detect_outliers('', self.test_df)
        # self.biomarkerQC.analyze_usable_biomarkers('', self.test_df)
-        print("here")
 
 # def test_report_last_biomarkers_invalid(self):
 #     self.fail()

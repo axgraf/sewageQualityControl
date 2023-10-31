@@ -3,17 +3,22 @@
 import os
 import itertools
 import argparse
+import pickle
+
 import numpy as np
 import pandas as pd
 
 from lib.arcgis import *
 from matplotlib.backends.backend_pdf import PdfPages
+from lib.config import Config
 from lib.constant import *
 from lib.biomarkerQC import BiomarkerQC
 from lib.surrogatevirusQC import SurrogateVirusQC
 from lib.water_quality import WaterQuality
 from lib.sewage_flow import SewageFlow
 from lib.normalization import SewageNormalization
+import lib.arcgis as arcgis
+import lib.bayvoc as bayVocConn
 import lib.utils as utils
 import lib.statistics as sewageStat
 import lib.plotting as plotting
@@ -23,17 +28,18 @@ import re
 
 class SewageQuality:
 
-    def __init__(self, input_file, output_folder, verbosity, quiet, rerun_all, biomarker_outlier_statistics,
+    def __init__(self, input_file, config_file, output_folder, verbosity, quiet, rerun_all, biomarker_outlier_statistics,
                  min_biomarker_threshold, min_number_biomarkers_for_outlier_detection,
                  max_number_biomarkers_for_outlier_detection, report_number_of_biomarker_outlier, periode_month_surrogatevirus,
                  surrogatevirus_outlier_statistics, min_number_surrogatevirus_for_outlier_detection,
                  water_quality_number_of_last_month, min_number_of_last_measurements_for_water_qc, water_qc_outlier_statistics,
                  fraction_last_samples_for_dry_flow, min_num_samples_for_mean_dry_flow, heavy_precipitation_factor,
                  mean_sewage_flow_below_typo_factor, mean_sewage_flow_above_typo_factor, min_number_of_biomarkers_for_normalization,
-                 base_reproduction_value_factor, max_number_of_flags_for_outlier
+                 base_reproduction_value_factor, num_previous_days_reproduction_factor, max_number_of_flags_for_outlier
                   ):
 
         self.input_file = input_file
+        self.config_file = config_file
         self.sewage_samples = None
         self.output_folder = output_folder
         self.verbosity = verbosity
@@ -62,6 +68,7 @@ class SewageQuality:
         # biomarker normalization
         self.min_number_of_biomarkers_for_normalization = min_number_of_biomarkers_for_normalization
         self.base_reproduction_value_factor = base_reproduction_value_factor
+        self.num_previous_days_reproduction_factor = num_previous_days_reproduction_factor
         self.max_number_of_flags_for_outlier = max_number_of_flags_for_outlier
         self.sewageStat = sewageStat.SewageStat()
         self.logger = utils.SewageLogger(self.output_folder, verbosity=verbosity, quiet=quiet)
@@ -69,7 +76,23 @@ class SewageQuality:
         self.__initialize()
 
     def __load_data(self):
-        self.sewage_samples_dict = utils.read_excel_input_files(self.input_file)
+        if self.input_file:
+            self.sewage_samples_dict = utils.read_excel_input_files(self.input_file)
+        elif self.config_file:
+            config = Config(self.config_file)
+#            arcgis = Arcgis(config)
+#            sewage_samples_dict = arcgis.obtain_sewage_samples()
+#            with open("data/sewageData_arcgis.dat", "wb") as writer:
+#                pickle.dump(sewage_samples_dict, writer)
+            sewage_samples_dict = None
+            with open('data/sewageData_arcgis.dat', 'rb') as f:
+                sewage_samples_dict = pickle.load(f)
+            self.sewage_samples_dict = dict()
+            for loc, samples_list in sewage_samples_dict.items():
+                if 'A-STADT' in loc:
+                    self.sewage_samples_dict[loc] = pd.DataFrame(s.__dict__ for s in samples_list)
+           # bayvoc = bayVocConn.BayVOC(config)
+           # self.sewage_samples_dict = bayvoc.read_all_sewagesamples_from_db()
         # arcgis = Arcgis(Config(self.config))
         # self.sewage_samples = arcgis.obtain_sewage_samples()
         # Todo: switch to real data import
@@ -97,7 +120,7 @@ class SewageQuality:
                                      self.min_number_surrogatevirus_for_outlier_detection,
                                      self.biomarker_outlier_statistics, self.output_folder)
         self.sewageNormalization = SewageNormalization(self.sewageStat, self.max_number_of_flags_for_outlier, self.min_number_of_biomarkers_for_normalization,
-                                                       self.base_reproduction_value_factor, self.output_folder)
+                                                       self.base_reproduction_value_factor, self.num_previous_days_reproduction_factor, self.output_folder)
 
 
 
@@ -251,11 +274,14 @@ class SewageQuality:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Sewage qPCR quality control",
-        usage='use "python3  --help" for more information',
+        usage='use "python3 ssqn.py --help" for more information',
         epilog="author: Dr. Alexander Graf (graf@genzentrum.lmu.de)", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-i', '--input', metavar="FILE", type=str,
                         help="Specifiy input excel file with biomarker values",
-                        required=True)
+                        required=False)
+    parser.add_argument('-c', '--config', metavar="FILE", type=str,
+                        help="Config file for DB connections",
+                        required=False)
     parser.add_argument('-o', '--output_folder', metavar="FOLDER", default="sewage_qc", type=str,
                         help="Specifiy output folder. (default folder: 'sewage_qc')",
                         required=False)
@@ -264,17 +290,18 @@ if __name__ == '__main__':
     parser.add_argument('-q', '--quiet', action='store_true', help="Print litte output.")
 
     biomarker_qc_group = parser.add_argument_group("Biomarker quality control")
-    biomarker_qc_group.add_argument('--biomarker_outlier_statistics', metavar="METHOD", default=['lof', 'iqr'], nargs='+',
+    biomarker_qc_group.add_argument('--biomarker_outlier_statistics', metavar="METHOD", default=['iqr', 'lof'], nargs='+',
                         help=("Which outlier detection methods should be used? Multiple selections allowed. (default: 'lof','iqr')\n"
                               "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                               "E.g. to select 'rf' and 'iqr' use: --biomarker_outlier_statistics rf iqr \n"
+                              "\tsvm = one class SVM\n"
                               "\tlof = local outlier factor\n"
                               "\trf = random forest\n"
                               "\tiqr = interquartile range\n"
                               "\tzscore = modified z-score\n"
                               "\tci = 99%% confidence interval\n"
                               "\tall = use all methods\n") ,
-                        choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
+                        choices=["lof", "rf", "iqr", "zscore", "ci", "svm", "all"],
                         required=False)
     biomarker_qc_group.add_argument('--biomarker_min_threshold', metavar="FLOAT", default=1.5, type=float,
                         help="Minimal biomarker threshold. (default: 1.5)",
@@ -296,18 +323,19 @@ if __name__ == '__main__':
     surrogatevirus_group.add_argument('--min_number_surrogatevirus_for_outlier_detection', metavar="INT", default=9, type=int,
                         help="Minimal number of surrogatevirus measurements. (default: 9)",
                         required=False)
-    surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['lof', 'iqr'], nargs='+',
+    surrogatevirus_group.add_argument('--surrogatevirus_outlier_statistics', metavar="METHOD", default=['iqr', 'lof'], nargs='+',
                                     help=(
                                         "Which outlier detection methods should be used for surrogatevirus qc? Multiple selections allowed. (default: 'lof','iqr')\n"
                                         "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                                         "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
+                                        "\tsvm = one class SVM\n"
                                         "\tlof = local outlier factor\n"
                                         "\trf = random forest\n"
                                         "\tiqr = interquartile range\n"
                                         "\tzscore = modified z-score\n"
                                         "\tci = 99%% confidence interval\n"
                                         "\tall = use all methods\n"),
-                                    choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
+                                    choices=["lof", "rf", "iqr", "zscore", "ci", "svm", "all"],
                                     required=False)
 
     sewage_flow_group = parser.add_argument_group("Sewage flow quality control")
@@ -340,20 +368,28 @@ if __name__ == '__main__':
     water_quality_group.add_argument('--min_number_of_last_measurements_for_water_qc', metavar="INT", default=9, type=int,
                                      help="The minimal number of last measurements required for water quality quality control. (default: 9)",
                                      required=False)
-    water_quality_group.add_argument('--water_qc_outlier_statistics', metavar="METHOD", default=['lof','zscore','iqr'], nargs='+',
+    water_quality_group.add_argument('--water_qc_outlier_statistics', metavar="METHOD", default=['iqr', 'lof'], nargs='+',
                                     help=(
                                         "Which outlier detection methods should be used for water qc? Multiple selections allowed. (default: 'lof','rf','iqr')\n"
                                         "Possible choices are : [lof, rf, iqr, zscore, ci, all]\n"
                                         "E.g. to select 'rf' and 'iqr' use: --outlier_statistics rf iqr \n"
+                                        "\tsvm = one class SVM\n"
                                         "\tlof = local outlier factor\n"
                                         "\trf = random forest\n"
                                         "\tiqr = interquartile range\n"
                                         "\tzscore = modified z-score\n"
                                         "\tci = 99%% confidence interval\n"
                                         "\tall = use all methods\n"),
-                                    choices=["lof", "rf", "iqr", "zscore", "ci", "all"],
+                                    choices=["lof", "rf", "iqr", "zscore", "ci", "svm", "all"],
                                     required=False)
-
+    reproduction_group = parser.add_argument_group("Reproduction factor")
+    reproduction_group.add_argument('--num_previous_days_reproduction_factor', metavar="INT", default=7, type=int,
+                                    help="Number of days to include samples for outlier analysis of the reproduction factor. (default: 7)",
+                                    required=False)
+    reproduction_group.add_argument('--base_reproduction_value_factor', metavar="FLOAT", default=3.8, type=float,
+                                     help="Factor below which the mean normalized biomarker value must be in comparison "
+                                          "to the mean normalized biomarker value of the last 7 days. (default: 3.8)",
+                                     required=False)
     normalization_group = parser.add_argument_group("Biomarker normalization")
     normalization_group.add_argument('--max_number_of_flags_for_outlier', metavar="INT", default=2, type=int,
                                      help="Maximal number of accumulated flags from all quality controls. "
@@ -362,13 +398,10 @@ if __name__ == '__main__':
     normalization_group.add_argument('--min_number_of_biomarkers_for_normalization', metavar="INT", default=2, type=int,
                                      help="Minimal number of biomarkers used for normalization. (default: 2)",
                                      required=False)
-    normalization_group.add_argument('--base_reproduction_value_factor', metavar="FLOAT", default=3.8, type=float,
-                                   help="Factor below which the mean normalized biomarker value must be in comparison "
-                                        "to the mean normalized biomarker value of the last 7 days. (default: 3.8)",
-                                   required=False)
+
 
     args = parser.parse_args()
-    sewageQuality = SewageQuality(args.input, args.output_folder, args.verbosity, args.quiet, args.rerun_all,
+    sewageQuality = SewageQuality(args.input, args.config, args.output_folder, args.verbosity, args.quiet, args.rerun_all,
                                   args.biomarker_outlier_statistics, args.biomarker_min_threshold,
                                   args.min_number_biomarkers_for_outlier_detection,
                                   args.max_number_biomarkers_for_outlier_detection,
@@ -379,7 +412,7 @@ if __name__ == '__main__':
                                   args.fraction_last_samples_for_dry_flow, args.min_num_samples_for_mean_dry_flow,
                                   args.heavy_precipitation_factor, args.mean_sewage_flow_below_typo_factor,
                                   args.mean_sewage_flow_above_typo_factor, args.min_number_of_biomarkers_for_normalization,
-                                  args.base_reproduction_value_factor, args.max_number_of_flags_for_outlier)
+                                  args.base_reproduction_value_factor, args.num_previous_days_reproduction_factor, args.max_number_of_flags_for_outlier)
 
     sewageQuality.run_quality_control()
 

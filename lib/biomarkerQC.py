@@ -92,8 +92,6 @@ class BiomarkerQC:
            For each measurement and biomarker pair outliers will be marked.
         """
         current_measurement = measurements.iloc[index]
-        if index == 109:
-            print("here")
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
             biomarker_ratio = biomarker1 + "/" + biomarker2
             if current_measurement[biomarker_ratio] and not math.isnan(current_measurement[biomarker_ratio]):  # only if biomarker ratio is not None for current measurement
@@ -168,7 +166,7 @@ class BiomarkerQC:
             is_below_threshold_or_empty = SewageFlag.is_flag(current_measurement[CalculatedColumns.get_biomarker_flag(biomarker)], SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)
             is_validated_outlier = SewageFlag.is_flag(current_measurement[CalculatedColumns.get_biomarker_flag(biomarker)], SewageFlag.BIOMARKER_VALIDATED_OUTLIER)
             is_probable_outlier = SewageFlag.is_flag(current_measurement[CalculatedColumns.get_biomarker_flag(biomarker)], SewageFlag.BIOMARKER_PROBABLE_OUTLIER)
-            if not is_below_threshold_or_empty and not is_validated_outlier and not is_probable_outlier:
+            if not is_below_threshold_or_empty and not is_validated_outlier: #and not is_probable_outlier:
                 num_usable_biomarkers += 1
             if is_probable_outlier:
                 is_probable_outlier_flag = True

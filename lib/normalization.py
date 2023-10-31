@@ -10,11 +10,13 @@ class SewageNormalization:
     def __init__(self, sewageStat: SewageStat, max_number_of_flags_for_outlier: int,
                  min_number_of_biomarkers_for_normalization: int,
                  base_reproduction_value_factor: float,
+                 num_previous_days_reproduction_factor: int,
                  output_folder: str):
         self.sewageStat = sewageStat
         self.max_number_of_flags_for_outlier = max_number_of_flags_for_outlier
         self.min_number_of_biomarkers_for_normalization = min_number_of_biomarkers_for_normalization
         self.base_reproduction_value_factor = base_reproduction_value_factor
+        self.num_previous_days_reproduction_factor = num_previous_days_reproduction_factor
         self.output_folder = output_folder
         self.logger = SewageLogger(self.output_folder)
 
@@ -43,12 +45,13 @@ class SewageNormalization:
 
     def __detect_basic_reproduction_number_outliers(self, sample_location: str, measurements_df: pd.DataFrame, index) -> None:
         current_measurement = measurements_df.iloc[index]
-        num_previous_days = 7
-        last_values_one_week = get_last_N_month_and_days(measurements_df, current_measurement, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value, num_month=0, num_days=num_previous_days,
-                                                         sewage_flag=None)
+        last_values_one_week = get_last_N_month_and_days(measurements_df, current_measurement, CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value,
+                                                         num_month=0, num_days=self.num_previous_days_reproduction_factor,
+                                                         sewage_flag=SewageFlag.REPRODUCTION_NUMBER_OUTLIER)
+        last_values_one_week = last_values_one_week[last_values_one_week[CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value] > 0]
         if last_values_one_week.shape[0] > 0:
-            last_mean_normalized_biomarker = np.mean(last_values_one_week[CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value])
             current_mean_normalized_biomarker = current_measurement[CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value]
+            last_mean_normalized_biomarker = np.mean(last_values_one_week[CalculatedColumns.NORMALIZED_MEAN_BIOMARKERS.value])
             if last_mean_normalized_biomarker > 0 and current_mean_normalized_biomarker > 0:  # no division by zero
                 reproduction_factor = current_mean_normalized_biomarker / last_mean_normalized_biomarker
                 measurements_df.at[index, CalculatedColumns.BASE_REPRODUCTION_FACTOR.value] = reproduction_factor
@@ -129,10 +132,10 @@ class SewageNormalization:
 
 
     def __clear_biomarker_ratio_outliers(self, measurements: pd.DataFrame, index):
-        if index == 109:
-            print("here")
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
-            SewageFlag.remove_flag_from_index_column(measurements, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2), SewageFlag.BIOMARKER_RATIO_OUTLIER)
+            current_flag = measurements.iloc[index][CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)]
+            if SewageFlag.is_flag(current_flag, SewageFlag.BIOMARKER_RATIO_OUTLIER):
+                SewageFlag.add_flag_to_index_column(measurements, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2), SewageFlag.BIOMARKER_RATIO_OUTLIER_REMOVED)
 
 
     def decide_biomarker_usable_based_on_flags(self, sample_location: str, measurements: pd.DataFrame, index):
