@@ -23,7 +23,7 @@ setup(
         'openpyxl == 3.0.10',
         'adjustText == 0.7.3',
         'requests == 2.25.1',
-        'jwt == 2.4.0'
+        'jwt'
     ]
     #include_package_data=True,
     #package_data={'': ['data/*.dat']},
