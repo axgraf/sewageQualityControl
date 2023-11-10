@@ -8,7 +8,7 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from lib.arcgis import *
+
 from matplotlib.backends.backend_pdf import PdfPages
 from lib.config import Config
 from lib.constant import *
@@ -17,8 +17,6 @@ from lib.surrogatevirusQC import SurrogateVirusQC
 from lib.water_quality import WaterQuality
 from lib.sewage_flow import SewageFlow
 from lib.normalization import SewageNormalization
-import lib.arcgis as arcgis
-import lib.bayvoc as bayVocConn
 import lib.utils as utils
 import lib.statistics as sewageStat
 import lib.plotting as plotting
@@ -79,28 +77,19 @@ class SewageQuality:
         if self.input_file:
             self.sewage_samples_dict = utils.read_excel_input_files(self.input_file)
         elif self.config_file:
+            # Todo: switch to real data import
             config = Config(self.config_file)
 #            arcgis = Arcgis(config)
 #            sewage_samples_dict = arcgis.obtain_sewage_samples()
-#            with open("data/sewageData_arcgis.dat", "wb") as writer:
-#                pickle.dump(sewage_samples_dict, writer)
-            sewage_samples_dict = None
-            with open('data/sewageData_arcgis.dat', 'rb') as f:
-                sewage_samples_dict = pickle.load(f)
-            self.sewage_samples_dict = dict()
-            for loc, samples_list in sewage_samples_dict.items():
-                if 'A-STADT' in loc:
-                    self.sewage_samples_dict[loc] = pd.DataFrame(s.__dict__ for s in samples_list)
-           # bayvoc = bayVocConn.BayVOC(config)
-           # self.sewage_samples_dict = bayvoc.read_all_sewagesamples_from_db()
-        # arcgis = Arcgis(Config(self.config))
-        # self.sewage_samples = arcgis.obtain_sewage_samples()
-        # Todo: switch to real data import
-#        import pickle
-#        with open('data/sewageData.dat', 'rb') as f:
-#            self.sewage_samples = pickle.load(f)
-#        with open('data/sewagePlantData.dat', 'rb') as f:
-#            self.sewage_plants2trockenwetterabfluss = pickle.load(f)
+#            self.sewage_samples_dict = dict()
+#            for loc, samples_list in sewage_samples_dict.items():
+#                if 'A-STADT' in loc:
+#                    self.sewage_samples_dict[loc] = pd.DataFrame(s.__dict__ for s in samples_list)
+#           # bayvoc = bayVocConn.BayVOC(config)
+#           # self.sewage_samples_dict = bayvoc.read_all_sewagesamples_from_db()
+#        # arcgis = Arcgis(Config(self.config))
+#        # self.sewage_samples = arcgis.obtain_sewage_samples()
+
         self.sewage_plants2trockenwetterabfluss = dict()
 
     def __initialize(self):

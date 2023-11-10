@@ -19,19 +19,6 @@ class Arcgis:
     def obtain_sewage_samples(self):
         self.__get_messwerte()
         return self.sewage_samples
-    #         self.__get_sewage_plants()
-
-    #         import pickle
-    #         import os
-    #         if not os.path.exists('sewageData.dat'):
-    #             with open('sewageData.dat', 'wb') as f:
-    #                 pickle.dump(self.sewage_samples, f)
-    #         if not os.path.exists('sewagePlantData.dat'):
-    #             with open('sewagePlantData.dat', 'wb') as f:
-    #                 pickle.dump(self.sewage_plants, f)
-    #         return self.sewage_samples, self.sewage_plants
-    #
-    #     #        self.__loess_regression()
 
 
     def __connnect_gis(self, gis_url, user, password):
