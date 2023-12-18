@@ -50,7 +50,7 @@ def convert_sample_list2pandas(measurements: List[SewageSample]):
     return table
 
 
-def detect_outliers(outlier_statistics, train_values, test_value):
+def detect_outliers(outlier_statistics, train_values, test_value, isFactor=False):
     outlier_detected = []
     if 'svm' in outlier_statistics or 'all' in outlier_statistics:
         is_svm_outlier = is_oneClassSVM(test_value, train_values)
@@ -65,7 +65,7 @@ def detect_outliers(outlier_statistics, train_values, test_value):
         is_confidence_interval_99_outlier, confidence_interval = is_confidence_interval_outlier(test_value, train_values, 0.99)
         outlier_detected.append(is_confidence_interval_99_outlier)
     if 'iqr' in outlier_statistics or 'all' in outlier_statistics:
-        is_iqr_outlier, iqr_range = interquartile_range(test_value, train_values)
+        is_iqr_outlier, iqr_range = interquartile_range(test_value, train_values, isFactor)
         outlier_detected.append(is_iqr_outlier)
     if 'zscore' in outlier_statistics or 'all' in outlier_statistics:
         is_zscore_outlier, z_score_threshold = is_outlier_modified_z_score(test_value, train_values)
@@ -88,7 +88,7 @@ def is_outlier_local_outlier_factor(test_value: float, train_values: List[float]
     """
     X = np.array(train_values).reshape(-1, 1)
     neighbours = 20 if len(X) > 20 else len(X) - 1
-    lof_novelty = LocalOutlierFactor(n_neighbors=neighbours, novelty=True, contamination=contamination).fit(X)
+    lof_novelty = LocalOutlierFactor(n_neighbors=neighbours, novelty=True, contamination=contamination,).fit(X)
     test_value = np.array(test_value).reshape(1, -1)
     prediction = lof_novelty.predict(test_value)
     return prediction[0] == -1
@@ -144,7 +144,7 @@ def is_outlier_modified_z_score(test_value: float, train_values: List[float]):
     return modified_zscore > max_standard_deviation, modified_zscore
 
 
-def interquartile_range(test_value: float, train_values: List[float]):
+def interquartile_range(test_value: float, train_values: List[float], isFactor=False):
     train_values = train_values.tolist()
     q1 = np.quantile(train_values, 0.25)
     q3 = np.quantile(train_values, 0.75)
@@ -153,8 +153,10 @@ def interquartile_range(test_value: float, train_values: List[float]):
     # std_dev = 3.5
     # multiplier = (std_dev - 0.675)/(0.675 + 0.675)
     # e.g. IQR multiplier of 1.7 = standard deviation of 3; 1.5 = standard deviation of 2.7
-    multiplier = 1.7
+    multiplier = 1.5
     minimum = q1 - multiplier * iqr
+    if isFactor:
+        minimum = 1 / (q3 + multiplier * iqr)
     maximum = q3 + multiplier * iqr
     if minimum <= test_value <= maximum:
         return False, (minimum, maximum)
@@ -174,6 +176,32 @@ def is_confidence_interval_outlier(test_value: float, train_values: List[float],
     if confidence_interval[0] <= test_value <= confidence_interval[1]:
         return False, confidence_interval
     return True, confidence_interval
+
+
+def get_last_values(measurements_df: pd.DataFrame, index, column_name,
+                              sewage_flag: SewageFlag = None, additional_sewage_flag: SewageFlag = None):
+    """
+    Obtain last values from last N month from the data frame. In case a flag is provided values that do have the flag set
+    will be filtered.
+
+    :param measurements_df: full data frame ot select last values
+    :param index of current measurement
+    :param column_name: remove NA from selected column
+    :param sewage_flag: Sewage flag to filter for previous outliers; must be not set in flags
+    :param additional_sewage_flag: Additional Sewage flag to filter for previous outliers; must be not set in flags
+    :return: data frame with entries from last N month
+    """
+    max_idx = (index - 1 - self.max_number_biomarkers_for_outlier_detection) \
+        if (index - 1 - self.max_number_biomarkers_for_outlier_detection) >= 0 else 0
+    min_idx = index if index >= 0 else 0
+    last_values = measurements_df.iloc[max_idx: min_idx]
+    # remove outliers based on sewage_flag -> filters values which do not have the flag
+    if sewage_flag:
+        last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[CalculatedColumns.FLAG.value], sewage_flag)]
+    if additional_sewage_flag:
+        last_values = last_values[SewageFlag.is_not_flag_set_for_series(last_values[CalculatedColumns.FLAG.value], additional_sewage_flag)]
+    last_values = last_values[last_values[column_name].notna()]
+    return last_values
 
 
 def get_last_N_month_and_days(measurements_df: pd.DataFrame, current_measurement, column_name, num_month, num_days,

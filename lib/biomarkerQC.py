@@ -50,6 +50,11 @@ class BiomarkerQC:
                 SewageFlag.add_flag_to_index_column(measurements, index, CalculatedColumns.get_biomarker_flag(biomarker), SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)
                 self.sewageStat.add_biomarker_below_threshold_or_empty(biomarker)
 
+    def standardize_biomarker_values(self, sample_location,  measurements: pd.DataFrame):
+        for biomarker in Columns.get_biomarker_columns():
+            index = measurements.columns.get_loc(biomarker)
+            standardized_biomarker = ( measurements[biomarker] - measurements[biomarker].mean()) / measurements[biomarker].std()
+            measurements.insert(index + 1, biomarker+"_zscore", standardized_biomarker)
 
     def calculate_biomarker_ratios(self, sample_location, measurements: pd.DataFrame, index):
         """
@@ -58,15 +63,21 @@ class BiomarkerQC:
         """
         current_measurement = measurements.iloc[index]
         for biomarker1, biomarker2 in itertools.combinations(Columns.get_biomarker_columns(), 2):
+
             is_biomarker1_flagged = SewageFlag.is_flag(current_measurement[CalculatedColumns.get_biomarker_flag(biomarker1)],
                                                        SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)
             is_biomarker2_flagged = SewageFlag.is_flag(current_measurement[CalculatedColumns.get_biomarker_flag(biomarker2)],
                                                        SewageFlag.BIOMARKER_BELOW_THRESHOLD_OR_EMPTY)
-            biomarker1_value, biomarker2_value = current_measurement[biomarker1], current_measurement[biomarker2]
+            biomarker1_value, biomarker2_value = current_measurement[biomarker1 + "_zscore"], current_measurement[biomarker2 + "_zscore"]
             if is_biomarker1_flagged or is_biomarker2_flagged or biomarker1_value == 0 or biomarker2_value == 0:
                 measurements.at[index, biomarker1 + "/" + biomarker2] = np.NAN
             else:
-                measurements.at[index, biomarker1 + "/" + biomarker2] = math.log2(biomarker1_value / biomarker2_value)
+                last_biomarker_ratios = self.__get_previous_biomarkers_ratios(measurements, index, biomarker1, biomarker2)
+                last_biomarker_ratio_median = np.median(last_biomarker_ratios[biomarker1+"_zscore"] / last_biomarker_ratios[biomarker2+"_zscore"]) if len(last_biomarker_ratios) > 0 else np.NAN
+                if not np.isnan(last_biomarker_ratio_median):
+                    measurements.at[index, biomarker1 + "/" + biomarker2] = (biomarker1_value / biomarker2_value) / last_biomarker_ratio_median
+                else:
+                    measurements.at[index, biomarker1 + "/" + biomarker2] = 1
 
 
     def __get_previous_biomarkers_ratios(self, measurements_df: pd.DataFrame, index, biomarker1, biomarker2):
@@ -82,7 +93,7 @@ class BiomarkerQC:
         biomarker_ratio_flags = last_N_measurements[CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)]
         last_N_measurements = last_N_measurements[SewageFlag.is_not_flag_set_for_series(biomarker_ratio_flags,
                                                                                         SewageFlag.BIOMARKER_RATIO_OUTLIER)]
-        biomarker_ratios = last_N_measurements[[Columns.DATE.value, biomarker1 + "/" + biomarker2, biomarker1, biomarker2]]
+        biomarker_ratios = last_N_measurements[[Columns.DATE.value, biomarker1 + "/" + biomarker2, biomarker1+"_zscore", biomarker2+"_zscore"]]
         # remove empty ratios
         biomarker_ratios = biomarker_ratios.dropna()
         return biomarker_ratios
@@ -100,7 +111,7 @@ class BiomarkerQC:
                     SewageFlag.add_flag_to_index_column(measurements, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2),
                                                         SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)
                     continue
-                is_outlier = detect_outliers(self.biomarker_outlier_statistics, last_biomarker_ratios[biomarker_ratio], current_measurement[biomarker_ratio])
+                is_outlier = detect_outliers(self.biomarker_outlier_statistics, last_biomarker_ratios[biomarker_ratio], current_measurement[biomarker_ratio], isFactor=True)
                 if is_outlier:
                     SewageFlag.add_flag_to_index_column(measurements, index, CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2), SewageFlag.BIOMARKER_RATIO_OUTLIER)
                     self.sewageStat.add_biomarker_ratio_outlier(biomarker1, biomarker2, 'outlier')

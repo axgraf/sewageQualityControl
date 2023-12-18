@@ -1,7 +1,6 @@
 # Created by alex at 28.06.23
 import itertools
-import dateutil
-import matplotlib.patches
+from dateutil.relativedelta import relativedelta
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -80,19 +79,15 @@ def plot_biomarker_outlier_summary(pdf_plotter, measurements_df, sample_location
         if length > 0:
             dat = pd.DataFrame()
             dat['date'] = measurements_df[Columns.DATE.value]
-            dat['log2[ratio]'] = measurements_df[biomarker_ratio]
+            dat['ratio/median ratio'] = measurements_df[biomarker_ratio]
             dat['biomarker_ratio'] = biomarker_ratio
             dat['outlier'] = measurements_df[CalculatedColumns.get_biomaker_ratio_flag(biomarker1, biomarker2)]
             plot_frame = pd.concat([plot_frame, dat])
             labels_dict[biomarker_ratio] = \
-                get_date_outlier_labels_flags(plot_frame, 'biomarker_ratio', biomarker_ratio, 'outlier', SewageFlag.BIOMARKER_RATIO_OUTLIER, 'log2[ratio]')
+                get_date_outlier_labels_flags(plot_frame, 'biomarker_ratio', biomarker_ratio,
+                                              'outlier', SewageFlag.BIOMARKER_RATIO_OUTLIER, 'ratio/median ratio')
 
     if plot_frame.shape[0] > 0:
-#        plot_frame['outlier'] = np.where(
-#            (SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)),
-#            'not tested',
- #           np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER)), 'outlier', 'inlier'))
-
         plot_frame['outlier'] = np.where(
             (SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.NOT_ENOUGH_PREVIOUS_BIOMARKER_VALUES)),
             'not tested',
@@ -100,10 +95,10 @@ def plot_biomarker_outlier_summary(pdf_plotter, measurements_df, sample_location
                      np.where((SewageFlag.is_flag_set_for_series(plot_frame['outlier'], SewageFlag.BIOMARKER_RATIO_OUTLIER)), 'outlier', 'inlier')))
 
         g = sns.FacetGrid(plot_frame, col="biomarker_ratio", col_wrap=1, margin_titles=True, height=5, aspect=6, sharey=False, legend_out=True)
-        min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
-        max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=10)
+        min_date = plot_frame['date'].min() + relativedelta(days=-10)
+        max_date = plot_frame['date'].max() + relativedelta(days=10)
         g.set(xlim=(min_date, max_date))
-        g.map_dataframe(sns.scatterplot, x="date", y="log2[ratio]", hue="outlier", palette=get_label_colors())
+        g.map_dataframe(sns.scatterplot, x="date", y="ratio/median ratio", hue="outlier", palette=get_label_colors())
         # add outlier dates as text labels to each axis
         __add_outlier_date_labels2ax(g, labels_dict)
         color_dict = get_label_colors()
@@ -137,9 +132,9 @@ def plot_surrogatvirus (pdf_plotter, measurements_df, sample_location, outlier_d
         plot_frame = pd.concat([plot_frame, dat])
         labels_dict[sVirus] = get_date_outlier_labels_value(plot_frame, 'type', sVirus, 'outlier', 'outlier', 'value')
     g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=6, sharey=False, legend_out=True)
-    min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
-    max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=10)
-    g.set(xlim=(min_date, max_date), ylim=(0,624288))
+    min_date = plot_frame['date'].min() + relativedelta(days=-10)
+    max_date = plot_frame['date'].max() + relativedelta(days=10)
+    g.set(xlim=(min_date, max_date))
     g.map_dataframe(sns.scatterplot, x="date", y="value", hue="outlier", palette=get_label_colors())
     __add_outlier_date_labels2ax(g, labels_dict)
     plt.legend(loc="upper center", bbox_to_anchor=(.5, -0.2), ncol=3, title=None, frameon=True)
@@ -169,8 +164,8 @@ def plot_water_quality(pdf_plotter, measurements_df, sample_location,  outlier_d
         labels_dict[qual_type] = get_date_outlier_labels_value(plot_frame, 'type', qual_type, 'outlier', 'outlier', 'value')
 
     g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=6, sharey=False, legend_out=True)
-    min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
-    max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=10)
+    min_date = plot_frame['date'].min() + relativedelta(days=-10)
+    max_date = plot_frame['date'].max() + relativedelta(days=10)
     g.set(xlim=(min_date, max_date))
     g.map_dataframe(sns.scatterplot, x="date", y="value", hue="outlier", palette=get_label_colors())
     __add_outlier_date_labels2ax(g, labels_dict)
@@ -195,8 +190,8 @@ def plot_sewage_flow(pdf_plotter, measurements_df, sample_location):
         'not tested', 'inlier'))
     plt.figure(figsize=(30, 8))
     g = sns.scatterplot(data=plot_frame, x="date", y="value", hue="outlier", palette=get_label_colors())
-    min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
-    max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=10)
+    min_date = plot_frame['date'].min() + relativedelta(days=-10)
+    max_date = plot_frame['date'].max() + relativedelta(days=10)
     g.set(xlim=(min_date, max_date))
     # if dry_weather_flow:
     #    g.axhline(dry_weather_flow, label="Dry weather flow", linestyle='dashed', c='black')
@@ -231,8 +226,8 @@ def plot_biomarker_normalization(pdf_plotter, measurements_df, sample_location):
         plot_frame = pd.concat([plot_frame, dat])
         labels_dict[column_type] = get_date_outlier_labels_value(plot_frame, 'type', column_type, 'outlier', 'outlier', 'value')
     g = sns.FacetGrid(plot_frame, col="type", col_wrap=1, margin_titles=True, height=5, aspect=6, sharey=False, legend_out=True)
-    min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-2)
-    max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=2)
+    min_date = plot_frame['date'].min() + relativedelta(days=-2)
+    max_date = plot_frame['date'].max() + relativedelta(days=2)
     g.set(xlim=(min_date, max_date))
     g.map_dataframe(sns.scatterplot, x="date", y="value", hue="outlier", palette=get_label_colors())
     __add_outlier_date_labels2ax(g, labels_dict)
@@ -254,8 +249,8 @@ def plot_general_outliers(pdf_plotter, measurements_df, sample_location):
     plot_frame['outlier'] = measurements_df[CalculatedColumns.OUTLIER_REASON.value]
     plt.figure(figsize=(30, 10))
     g = sns.scatterplot(data=plot_frame, x="date", y="value", hue="outlier")
-    min_date = plot_frame['date'].min() + dateutil.relativedelta.relativedelta(days=-10)
-    max_date = plot_frame['date'].max() + dateutil.relativedelta.relativedelta(days=10)
+    min_date = plot_frame['date'].min() + relativedelta(days=-10)
+    max_date = plot_frame['date'].max() + relativedelta(days=10)
     g.set(xlim=(min_date, max_date))
     labels = get_general_outlier_date_labels(plot_frame, 'outlier')
     adjust_text(labels)
